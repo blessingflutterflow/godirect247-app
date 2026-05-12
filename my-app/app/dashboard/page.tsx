@@ -1,22 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-declare global {
-  interface Window {
-    Yoco: {
-      checkout: (config: {
-        publicKey: string;
-        amountInCents: number;
-        currency: string;
-        name: string;
-        description: string;
-        callback: (result: { id?: string; error?: string }) => void;
-      }) => void;
-    };
-  }
-}
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
   CheckCircle, Warning, SignOut, TrendUp, Gift, UserPlus,
@@ -83,6 +68,7 @@ function TierProgressBar({ stats }: { stats: ReferralStats }) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, userData, loading, refreshUserData } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -126,6 +112,17 @@ export default function DashboardPage() {
     }
   }, [user, refreshUserData]);
 
+  // Handle Yoco payment callback
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    const checkoutId = searchParams.get('checkoutId');
+    
+    if (payment === 'cancelled') {
+      setActivationError('Payment was cancelled. Please try again.');
+    }
+    // Success is handled by webhook or we can verify here if needed
+  }, [searchParams]);
+
   async function handleMarkRead(id: string) {
     await markNotificationRead(id);
     setNotifications((prev) => prev.filter((n) => n.id !== id));
@@ -145,50 +142,35 @@ export default function DashboardPage() {
   async function handleActivate() {
     if (!user || !userData) return;
     setActivationError('');
+    setActivating(true);
     const u = userData as UserData;
     const fee = getActivationFee(u.tier, u.planType);
 
-    if (!window.Yoco) {
-      setActivationError('Payment system not loaded. Please refresh the page.');
-      return;
-    }
+    try {
+      const response = await fetch('/api/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amountInCents: fee * 100,
+          userId: user.uid,
+          tier: u.tier,
+          planType: u.planType,
+        }),
+      });
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        setActivationError(data.error || 'Failed to initialize payment. Please try again.');
+        setActivating(false);
+        return;
+      }
 
-    window.Yoco.checkout({
-      publicKey: process.env.NEXT_PUBLIC_YOCO_PUBLIC_KEY || '',
-      amountInCents: fee * 100,
-      currency: 'ZAR',
-      name: 'GoDirect247',
-      description: `Activate ${u.tier} funeral cover`,
-      callback: async (result) => {
-        if (result.error) {
-          setActivationError('Payment cancelled or failed. Please try again.');
-          return;
-        }
-        if (result.id) {
-          setActivating(true);
-          try {
-            const response = await fetch('/api/activate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token: result.id, amountInCents: fee * 100 }),
-            });
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-              setActivationError(data.error || 'Payment failed. Please contact support.');
-            } else {
-              await recordActivationPayment(user.uid, fee, data.chargeId);
-              await Promise.all([
-                refreshUserData(),
-                getReferralStats(user.uid).then(setReferralStats),
-              ]);
-            }
-          } catch {
-            setActivationError('Something went wrong. Please contact support.');
-          }
-          setActivating(false);
-        }
-      },
-    });
+      // Redirect to Yoco hosted checkout
+      window.location.href = data.redirectUrl;
+    } catch {
+      setActivationError('Something went wrong. Please contact support.');
+      setActivating(false);
+    }
   }
 
   async function handleWithdraw() {
