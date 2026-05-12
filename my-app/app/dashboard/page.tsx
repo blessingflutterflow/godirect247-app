@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
@@ -66,7 +66,7 @@ function TierProgressBar({ stats }: { stats: ReferralStats }) {
   );
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, userData, loading, refreshUserData } = useAuth();
@@ -879,5 +879,13 @@ export default function DashboardPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#191c1f] flex items-center justify-center"><div className="text-white/40 text-sm">Loading…</div></div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
