@@ -10,7 +10,7 @@ export function Footer() {
               Go<span className="text-[#f3cc20]">Direct</span>247
             </div>
             <p className="text-white/40 text-sm leading-relaxed max-w-xs">
-              A division of Zarkudu Group. FSP Registered, NCR 26091.
+              A division of Zarkudu Group. FSP Licence JR 50841.
             </p>
           </div>
 
@@ -37,7 +37,7 @@ export function Footer() {
         </div>
 
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between gap-3 text-xs text-white/30">
-          <span>&copy; 2026 GoDirect247 &middot; Zarkudu Group &middot; FSP Registered &middot; NCR 26091</span>
+          <span>&copy; 2026 GoDirect247 &middot; Zarkudu Group &middot; FSP Licence JR 50841</span>
           <span>Platform v2.0</span>
         </div>
       </div>
