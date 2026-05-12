@@ -1,6 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
+declare global {
+  interface Window {
+    Yoco: {
+      checkout: (config: {
+        publicKey: string;
+        amountInCents: number;
+        currency: string;
+        name: string;
+        description: string;
+        callback: (result: { id?: string; error?: string }) => void;
+      }) => void;
+    };
+  }
+}
 import { useRouter } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
@@ -130,19 +145,50 @@ export default function DashboardPage() {
   async function handleActivate() {
     if (!user || !userData) return;
     setActivationError('');
-    setActivating(true);
     const u = userData as UserData;
     const fee = getActivationFee(u.tier, u.planType);
-    try {
-      await recordActivationPayment(user.uid, fee, 'mock_test');
-      await Promise.all([
-        refreshUserData(),
-        getReferralStats(user.uid).then(setReferralStats),
-      ]);
-    } catch {
-      setActivationError('Something went wrong. Please contact support.');
+
+    if (!window.Yoco) {
+      setActivationError('Payment system not loaded. Please refresh the page.');
+      return;
     }
-    setActivating(false);
+
+    window.Yoco.checkout({
+      publicKey: process.env.NEXT_PUBLIC_YOCO_PUBLIC_KEY || '',
+      amountInCents: fee * 100,
+      currency: 'ZAR',
+      name: 'GoDirect247',
+      description: `Activate ${u.tier} funeral cover`,
+      callback: async (result) => {
+        if (result.error) {
+          setActivationError('Payment cancelled or failed. Please try again.');
+          return;
+        }
+        if (result.id) {
+          setActivating(true);
+          try {
+            const response = await fetch('/api/activate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: result.id, amountInCents: fee * 100 }),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+              setActivationError(data.error || 'Payment failed. Please contact support.');
+            } else {
+              await recordActivationPayment(user.uid, fee, data.chargeId);
+              await Promise.all([
+                refreshUserData(),
+                getReferralStats(user.uid).then(setReferralStats),
+              ]);
+            }
+          } catch {
+            setActivationError('Something went wrong. Please contact support.');
+          }
+          setActivating(false);
+        }
+      },
+    });
   }
 
   async function handleWithdraw() {
@@ -380,8 +426,8 @@ export default function DashboardPage() {
               disabled={activating}
               className="w-full bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3.5 rounded-xl hover:bg-[#c9a800] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {activating ? 'Activating…' : (
-                <>Simulate Activation (R{fee.toLocaleString()}) <ArrowRight size={16} /></>
+              {activating ? 'Processing…' : (
+                <>Pay Now (R{fee.toLocaleString()}) <ArrowRight size={16} /></>
               )}
             </button>
             <p className="text-white/30 text-xs text-center mt-2">Secured by Yoco · Card payments accepted</p>
