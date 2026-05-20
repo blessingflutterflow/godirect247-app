@@ -240,7 +240,7 @@ export default async function HomePage({
 
       {/* ── Plans ── */}
       <section id="plans" className="bg-[#191c1f] py-24 px-5">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <span className="text-[#f3cc20] text-sm font-semibold tracking-widest uppercase">
               Two plans

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Shield, Crown } from '@phosphor-icons/react';
 import { PLUS_TIERS, GOLD_TIERS, type TierData } from '@/lib/constants';
+import { QuotationCalculator } from '@/components/QuotationCalculator';
 
 function TierRow({ tier, isGold }: { tier: TierData; isGold: boolean }) {
   const topClass = isGold
@@ -139,6 +140,8 @@ export function PlansTabs() {
         <span className="flex items-center gap-1.5">💰 Cashback paid 5th of month 4</span>
         <span className="flex items-center gap-1.5">🔄 Renew by month 11 to stay active</span>
       </div>
+
+      <QuotationCalculator />
     </div>
   );
 }
