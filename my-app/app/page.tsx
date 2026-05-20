@@ -16,6 +16,7 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { PlansTabs } from '@/components/PlansTabs';
 import { RefTracker } from '@/components/RefTracker';
+import { VoiceEnquiry } from '@/components/VoiceEnquiry';
 
 export default async function HomePage({
   searchParams,
@@ -131,6 +132,8 @@ export default async function HomePage({
           </div>
         </div>
       </section>
+
+      <VoiceEnquiry />
 
       {/* ── Pre-launch banner ── */}
       <section className="bg-[#191c1f] border-y border-[#f3cc20]/20">
