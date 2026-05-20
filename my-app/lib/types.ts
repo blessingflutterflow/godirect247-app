@@ -194,4 +194,5 @@ export interface SignUpFormData {
   baseActivationFee: number;
   extendedFamilyFee: number;
   totalApplicationFee: number;
+  identitySelfieDataUrl?: string | null;
 }

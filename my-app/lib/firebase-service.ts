@@ -180,9 +180,9 @@ export async function signUpUser(
       funeralCoverActive: false,
       funeralCoverExpiry: null,
       applicationStatus: 'submitted',
-      identityVerificationStatus: 'not_started',
-      identitySelfieDataUrl: null,
-      identitySubmittedAt: null,
+      identityVerificationStatus: userData.identitySelfieDataUrl ? 'submitted' : 'not_started',
+      identitySelfieDataUrl: userData.identitySelfieDataUrl || null,
+      identitySubmittedAt: userData.identitySelfieDataUrl ? now : null,
       identityReviewedAt: null,
       identityReviewedBy: null,
       identityRejectionReason: null,
@@ -190,21 +190,29 @@ export async function signUpUser(
       updatedAt: now,
     });
 
-    await createNotification(
-      uid,
-      'identity',
-      'Please complete your selfie verification before activating your cover.'
-    );
-    sendEmailNotification(
-      email,
-      'Complete your GoDirect247 selfie verification',
-      `
-        <p>Hi ${userData.fullName || 'there'},</p>
-        <p>Your GoDirect247 application has been received.</p>
-        <p>Please log in and take a selfie so we can protect your profile before you activate your cover.</p>
-        <p><a href="${typeof window !== 'undefined' ? `${window.location.origin}/login` : 'https://godirect247.com/login'}">Log in to GoDirect247</a></p>
-      `
-    );
+    if (userData.identitySelfieDataUrl) {
+      await createNotification(
+        uid,
+        'identity',
+        'Your selfie was submitted with your application and is waiting for GoDirect247 review.'
+      );
+    } else {
+      await createNotification(
+        uid,
+        'identity',
+        'Please complete your selfie verification before activating your cover.'
+      );
+      sendEmailNotification(
+        email,
+        'Complete your GoDirect247 selfie verification',
+        `
+          <p>Hi ${userData.fullName || 'there'},</p>
+          <p>Your GoDirect247 application has been received.</p>
+          <p>Please log in and take a selfie so we can protect your profile before you activate your cover.</p>
+          <p><a href="${typeof window !== 'undefined' ? `${window.location.origin}/login` : 'https://godirect247.com/login'}">Log in to GoDirect247</a></p>
+        `
+      );
+    }
 
     if (referredBy) {
       const activationFee = getActivationFee(userData.tier, userData.planType);

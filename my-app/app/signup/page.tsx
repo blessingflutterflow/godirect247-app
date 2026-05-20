@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, ArrowLeft, CheckCircle, Eye, EyeSlash, PaperPlaneTilt, UploadSimple } from '@phosphor-icons/react';
+import { ArrowRight, ArrowLeft, Camera, CheckCircle, Eye, EyeSlash, Microphone, PaperPlaneTilt, UploadSimple } from '@phosphor-icons/react';
 import { Shield, Crown } from '@phosphor-icons/react';
 import { signUpUser } from '@/lib/firebase-service';
 import { PLUS_TIERS, GOLD_TIERS } from '@/lib/constants';
@@ -13,6 +13,34 @@ import type { Dependent, PolicyDocuments, SignUpFormData, UploadedDocument } fro
 
 type PlanType = 'plus' | 'gold';
 type Step = 1 | 2 | 3 | 4;
+type SpeechField = string | null;
+
+interface SpeechRecognitionResultItem {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultListItem {
+  0: SpeechRecognitionResultItem;
+}
+
+interface SpeechRecognitionEvent {
+  results: {
+    [index: number]: SpeechRecognitionResultListItem;
+    length: number;
+  };
+}
+
+interface BrowserSpeechRecognition {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
 interface PersonalForm {
   name: string;
@@ -64,6 +92,42 @@ const selectCls =
 
 function formatCurrency(value: number): string {
   return `R${value.toLocaleString('en-ZA', { maximumFractionDigits: 2 })}`;
+}
+
+function getSpeechRecognition(): SpeechRecognitionConstructor | null {
+  if (typeof window === 'undefined') return null;
+  const speechWindow = window as Window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+  return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition || null;
+}
+
+function resizeSelfie(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read selfie.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not load selfie.'));
+      img.onload = () => {
+        const maxWidth = 720;
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not prepare selfie.'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function readDocumentFile(file: File, label: string): Promise<UploadedDocument> {
@@ -166,6 +230,12 @@ function SignupContent() {
     dependentIds: [],
     extendedFamilyId: null,
   });
+  const [identitySelfieDataUrl, setIdentitySelfieDataUrl] = useState<string | null>(null);
+  const [selfieError, setSelfieError] = useState('');
+  const [selfieProcessing, setSelfieProcessing] = useState(false);
+  const selfieInputRef = useRef<HTMLInputElement | null>(null);
+  const [listeningField, setListeningField] = useState<SpeechField>(null);
+  const speechRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -285,6 +355,63 @@ function SignupContent() {
     });
   }
 
+  function startDictation(field: string, onText: (text: string) => void) {
+    const SpeechRecognition = getSpeechRecognition();
+    if (!SpeechRecognition) {
+      alert('Voice typing is not supported on this browser. Please type the information manually.');
+      return;
+    }
+
+    if (speechRecognitionRef.current) {
+      speechRecognitionRef.current.onend = null;
+    }
+
+    const recognition = new SpeechRecognition();
+    speechRecognitionRef.current = recognition;
+    recognition.lang = 'en-ZA';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results[event.results.length - 1]?.[0]?.transcript?.trim();
+      if (transcript) onText(transcript);
+    };
+    recognition.onerror = () => setListeningField(null);
+    recognition.onend = () => setListeningField(null);
+    setListeningField(field);
+    recognition.start();
+  }
+
+  function dictationButton(field: string, onText: (text: string) => void) {
+    const active = listeningField === field;
+    return (
+      <button
+        key={field}
+        type="button"
+        onClick={() => startDictation(field, onText)}
+        className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${
+          active ? 'text-[#f3cc20]' : 'text-white/45 hover:text-white/75'
+        }`}
+        aria-label="Speak this field"
+        title="Speak this field"
+      >
+        <Microphone size={18} weight={active ? 'fill' : 'regular'} />
+      </button>
+    );
+  }
+
+  async function handleSelfieFile(file: File | null) {
+    if (!file) return;
+    setSelfieProcessing(true);
+    setSelfieError('');
+    try {
+      setIdentitySelfieDataUrl(await resizeSelfie(file));
+    } catch (err) {
+      setSelfieError(err instanceof Error ? err.message : 'Could not prepare selfie.');
+    }
+    setSelfieProcessing(false);
+    if (selfieInputRef.current) selfieInputRef.current.value = '';
+  }
+
   async function handleSubmit() {
     if (!tcAccepted) { alert('Please accept the terms and conditions.'); return; }
     if (!planType || !tier) return;
@@ -312,6 +439,7 @@ function SignupContent() {
       baseActivationFee,
       extendedFamilyFee,
       totalApplicationFee,
+      identitySelfieDataUrl,
     };
 
     const result = await signUpUser(personal.email, personal.password, formData);
@@ -446,27 +574,45 @@ function SignupContent() {
 
           <div className="space-y-4 mb-6">
             <Field label="Full name & surname">
-              <input type="text" value={personal.name} onChange={(e) => setPersonal({ ...personal, name: e.target.value })} placeholder="e.g. Thabo Nkosi" className={inputCls} />
+              <div className="relative">
+                <input type="text" value={personal.name} onChange={(e) => setPersonal({ ...personal, name: e.target.value })} placeholder="e.g. Thabo Nkosi" className={`${inputCls} pr-12`} />
+                {dictationButton("personal-name", (text) => setPersonal({ ...personal, name: text }))}
+              </div>
             </Field>
             <Field label="ID number">
-              <input type="text" inputMode="numeric" maxLength={13} value={personal.idNumber} onChange={(e) => setPersonal({ ...personal, idNumber: e.target.value })} placeholder="13-digit South African ID" className={inputCls} />
+              <div className="relative">
+                <input type="text" inputMode="numeric" maxLength={13} value={personal.idNumber} onChange={(e) => setPersonal({ ...personal, idNumber: e.target.value })} placeholder="13-digit South African ID" className={`${inputCls} pr-12`} />
+                {dictationButton("personal-id", (text) => setPersonal({ ...personal, idNumber: text.replace(/\D/g, '').slice(0, 13) }))}
+              </div>
             </Field>
             <Field label="Phone number">
               <div className="space-y-2">
                 <div className="flex gap-2">
-                  <input
-                    type="tel"
-                    value={personal.phone}
-                    onChange={(e) => {
-                      setPersonal({ ...personal, phone: e.target.value });
-                      setPhoneVerified(false);
-                      setOtpSent(false);
-                      setOtpCode('');
-                    }}
-                    placeholder="e.g. 071 234 5678"
-                    className={`${inputCls} flex-1`}
-                    disabled={phoneVerified}
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      type="tel"
+                      value={personal.phone}
+                      onChange={(e) => {
+                        setPersonal({ ...personal, phone: e.target.value });
+                        setPhoneVerified(false);
+                        setOtpSent(false);
+                        setOtpCode('');
+                      }}
+                      placeholder="e.g. 071 234 5678"
+                      className={`${inputCls} pr-12`}
+                      disabled={phoneVerified}
+                    />
+                    {!phoneVerified && (
+                      <>
+                        {dictationButton("personal-phone", (text) => {
+                          setPersonal({ ...personal, phone: text });
+                          setPhoneVerified(false);
+                          setOtpSent(false);
+                          setOtpCode('');
+                        })}
+                      </>
+                    )}
+                  </div>
                   {!phoneVerified ? (
                     <button
                       type="button"
@@ -507,7 +653,10 @@ function SignupContent() {
               </div>
             </Field>
             <Field label="Email address">
-              <input type="email" value={personal.email} onChange={(e) => setPersonal({ ...personal, email: e.target.value })} placeholder="you@example.com" className={inputCls} />
+              <div className="relative">
+                <input type="email" value={personal.email} onChange={(e) => setPersonal({ ...personal, email: e.target.value })} placeholder="you@example.com" className={`${inputCls} pr-12`} />
+                {dictationButton("personal-email", (text) => setPersonal({ ...personal, email: text.toLowerCase().replace(/\s+/g, '') }))}
+              </div>
             </Field>
             <Field label="Password">
               <div className="relative">
@@ -564,7 +713,10 @@ function SignupContent() {
               </select>
             </Field>
             <Field label="Referred by (optional)">
-              <input type="text" value={personal.referral} onChange={(e) => setPersonal({ ...personal, referral: e.target.value })} placeholder="Name of person who referred you" className={inputCls} />
+              <div className="relative">
+                <input type="text" value={personal.referral} onChange={(e) => setPersonal({ ...personal, referral: e.target.value })} placeholder="Name of person who referred you" className={`${inputCls} pr-12`} />
+                {dictationButton("personal-referral", (text) => setPersonal({ ...personal, referral: text }))}
+              </div>
             </Field>
           </div>
 
@@ -591,8 +743,14 @@ function SignupContent() {
           <div className="mb-5">
             <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-3">Main beneficiary</p>
             <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-4 space-y-3">
-              <input type="text" value={beneficiary.name} onChange={(e) => setBeneficiary({ ...beneficiary, name: e.target.value })} placeholder="Beneficiary full name" className={inputCls} />
-              <input type="text" value={beneficiary.idNumber} onChange={(e) => setBeneficiary({ ...beneficiary, idNumber: e.target.value })} placeholder="Beneficiary ID number" className={inputCls} />
+              <div className="relative">
+                <input type="text" value={beneficiary.name} onChange={(e) => setBeneficiary({ ...beneficiary, name: e.target.value })} placeholder="Beneficiary full name" className={`${inputCls} pr-12`} />
+                {dictationButton("beneficiary-name", (text) => setBeneficiary({ ...beneficiary, name: text }))}
+              </div>
+              <div className="relative">
+                <input type="text" value={beneficiary.idNumber} onChange={(e) => setBeneficiary({ ...beneficiary, idNumber: e.target.value })} placeholder="Beneficiary ID number" className={`${inputCls} pr-12`} />
+                {dictationButton("beneficiary-id", (text) => setBeneficiary({ ...beneficiary, idNumber: text.replace(/\D/g, '').slice(0, 13) }))}
+              </div>
               <select value={beneficiary.relation} onChange={(e) => setBeneficiary({ ...beneficiary, relation: e.target.value })} className={selectCls}>
                 <option value="" className="bg-[#191c1f]">Relationship to beneficiary</option>
                 {['Partner', 'Child', 'Parent', 'Other'].map((o) => (
@@ -618,10 +776,22 @@ function SignupContent() {
             </div>
             {showSpouse && (
               <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-4 space-y-3">
-                <input type="text" value={spouse.firstName} onChange={(e) => setSpouse({ ...spouse, firstName: e.target.value })} placeholder="Spouse first name" className={inputCls} />
-                <input type="text" value={spouse.surname} onChange={(e) => setSpouse({ ...spouse, surname: e.target.value })} placeholder="Spouse surname" className={inputCls} />
-                <input type="text" value={spouse.idNumber} onChange={(e) => setSpouse({ ...spouse, idNumber: e.target.value })} placeholder="Spouse ID number" className={inputCls} />
-                <input type="tel" value={spouse.cell} onChange={(e) => setSpouse({ ...spouse, cell: e.target.value })} placeholder="Spouse cell number" className={inputCls} />
+                <div className="relative">
+                  <input type="text" value={spouse.firstName} onChange={(e) => setSpouse({ ...spouse, firstName: e.target.value })} placeholder="Spouse first name" className={`${inputCls} pr-12`} />
+                  {dictationButton("spouse-first", (text) => setSpouse({ ...spouse, firstName: text }))}
+                </div>
+                <div className="relative">
+                  <input type="text" value={spouse.surname} onChange={(e) => setSpouse({ ...spouse, surname: e.target.value })} placeholder="Spouse surname" className={`${inputCls} pr-12`} />
+                  {dictationButton("spouse-surname", (text) => setSpouse({ ...spouse, surname: text }))}
+                </div>
+                <div className="relative">
+                  <input type="text" value={spouse.idNumber} onChange={(e) => setSpouse({ ...spouse, idNumber: e.target.value })} placeholder="Spouse ID number" className={`${inputCls} pr-12`} />
+                  {dictationButton("spouse-id", (text) => setSpouse({ ...spouse, idNumber: text.replace(/\D/g, '').slice(0, 13) }))}
+                </div>
+                <div className="relative">
+                  <input type="tel" value={spouse.cell} onChange={(e) => setSpouse({ ...spouse, cell: e.target.value })} placeholder="Spouse cell number" className={`${inputCls} pr-12`} />
+                  {dictationButton("spouse-cell", (text) => setSpouse({ ...spouse, cell: text }))}
+                </div>
               </div>
             )}
           </div>
@@ -652,9 +822,18 @@ function SignupContent() {
                       ✕ Remove
                     </button>
                   </div>
-                  <input type="text" value={dep.name} onChange={(e) => updateDependent(i, 'name', e.target.value)} placeholder="Full name" className={inputCls} />
-                  <input type="text" value={dep.relation} onChange={(e) => updateDependent(i, 'relation', e.target.value)} placeholder="Relationship (e.g. Son, Daughter)" className={inputCls} />
-                  <input type="text" value={dep.id} onChange={(e) => updateDependent(i, 'id', e.target.value)} placeholder="ID number" className={inputCls} />
+                  <div className="relative">
+                    <input type="text" value={dep.name} onChange={(e) => updateDependent(i, 'name', e.target.value)} placeholder="Full name" className={`${inputCls} pr-12`} />
+                    {dictationButton(`dependent-${i}-name`, (text) => updateDependent(i, 'name', text))}
+                  </div>
+                  <div className="relative">
+                    <input type="text" value={dep.relation} onChange={(e) => updateDependent(i, 'relation', e.target.value)} placeholder="Relationship (e.g. Son, Daughter)" className={`${inputCls} pr-12`} />
+                    {dictationButton(`dependent-${i}-relation`, (text) => updateDependent(i, 'relation', text))}
+                  </div>
+                  <div className="relative">
+                    <input type="text" value={dep.id} onChange={(e) => updateDependent(i, 'id', e.target.value)} placeholder="ID number" className={`${inputCls} pr-12`} />
+                    {dictationButton(`dependent-${i}-id`, (text) => updateDependent(i, 'id', text.replace(/\D/g, '').slice(0, 13)))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -678,10 +857,71 @@ function SignupContent() {
             </div>
             {showExtended && (
               <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-4 space-y-3">
-                <input type="text" value={extended.name} onChange={(e) => setExtended({ ...extended, name: e.target.value })} placeholder="Extended family full name" className={inputCls} />
-                <input type="text" value={extended.idNumber} onChange={(e) => setExtended({ ...extended, idNumber: e.target.value })} placeholder="Extended family ID number" className={inputCls} />
+                <div className="relative">
+                  <input type="text" value={extended.name} onChange={(e) => setExtended({ ...extended, name: e.target.value })} placeholder="Extended family full name" className={`${inputCls} pr-12`} />
+                  {dictationButton("extended-name", (text) => setExtended({ ...extended, name: text }))}
+                </div>
+                <div className="relative">
+                  <input type="text" value={extended.idNumber} onChange={(e) => setExtended({ ...extended, idNumber: e.target.value })} placeholder="Extended family ID number" className={`${inputCls} pr-12`} />
+                  {dictationButton("extended-id", (text) => setExtended({ ...extended, idNumber: text.replace(/\D/g, '').slice(0, 13) }))}
+                </div>
               </div>
             )}
+          </div>
+
+          {/* Selfie verification */}
+          <div className="mb-6">
+            <div className="mb-3">
+              <p className="text-white/60 text-xs font-semibold uppercase tracking-wide">Selfie verification</p>
+              <p className="text-white/35 text-xs mt-1">
+                Take a clear selfie now so GoDirect247 can review your identity before activation.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-sky-400/20 bg-sky-400/[0.05] p-4">
+              {identitySelfieDataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={identitySelfieDataUrl}
+                  alt="Signup selfie preview"
+                  className="mb-3 aspect-video w-full rounded-xl border border-white/10 object-cover"
+                />
+              ) : (
+                <div className="mb-3 flex aspect-video w-full items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                  <Camera size={28} className="text-sky-300" />
+                </div>
+              )}
+              {selfieError && <p className="mb-3 text-xs text-[#e23b4a]">{selfieError}</p>}
+              <input
+                ref={selfieInputRef}
+                type="file"
+                accept="image/*"
+                capture="user"
+                className="hidden"
+                onChange={(event) => handleSelfieFile(event.target.files?.[0] || null)}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => selfieInputRef.current?.click()}
+                  disabled={selfieProcessing}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-sky-400/10 px-3 py-3 text-xs font-semibold text-sky-200 transition-all hover:bg-sky-400/20 disabled:opacity-50"
+                >
+                  <Camera size={14} />
+                  {selfieProcessing ? 'Preparing...' : identitySelfieDataUrl ? 'Retake selfie' : 'Take selfie'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIdentitySelfieDataUrl(null)}
+                  disabled={!identitySelfieDataUrl}
+                  className="rounded-xl border border-white/15 px-3 py-3 text-xs font-semibold text-white/55 transition-all hover:border-white/30 disabled:opacity-35"
+                >
+                  Remove
+                </button>
+              </div>
+              <p className="mt-2 text-[10px] leading-relaxed text-white/35">
+                Selfie upload is optional during signup, but taking it now helps reduce delays before payment and activation.
+              </p>
+            </div>
           </div>
 
           {/* Documents */}
@@ -777,6 +1017,7 @@ function SignupContent() {
               ['Beneficiary', beneficiary.name || 'Not added'],
               ...(showSpouse && spouse.firstName ? [['Spouse', `${spouse.firstName} ${spouse.surname}`]] : []),
               ['Policy Holder ID', documents.policyHolderId ? 'Uploaded' : 'Required'],
+              ['Selfie verification', identitySelfieDataUrl ? 'Submitted for review' : 'Can be completed after login'],
               ['Spouse ID', documents.spouseId ? 'Uploaded' : showSpouse ? 'Not uploaded' : 'N/A'],
               ['Dependent documents', `${documents.dependentIds?.filter(Boolean).length || 0} uploaded`],
               ['Extended family document', documents.extendedFamilyId ? 'Uploaded' : hasExtendedFamily ? 'Not uploaded' : 'N/A'],
