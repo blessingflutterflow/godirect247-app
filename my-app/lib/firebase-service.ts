@@ -35,6 +35,15 @@ function sendSMSNotification(to: string, message: string): void {
   }).catch(() => {});
 }
 
+function sendEmailNotification(to: string, subject: string, html: string): void {
+  if (typeof window === 'undefined' || !to) return;
+  fetch('/api/send-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, subject, html }),
+  }).catch(() => {});
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function generateReferralCode(): string {
@@ -131,9 +140,31 @@ export async function signUpUser(
       funeralCoverActive: false,
       funeralCoverExpiry: null,
       applicationStatus: 'submitted',
+      identityVerificationStatus: 'not_started',
+      identitySelfieDataUrl: null,
+      identitySubmittedAt: null,
+      identityReviewedAt: null,
+      identityReviewedBy: null,
+      identityRejectionReason: null,
       createdAt: now,
       updatedAt: now,
     });
+
+    await createNotification(
+      uid,
+      'identity',
+      'Please complete your selfie verification before activating your cover.'
+    );
+    sendEmailNotification(
+      email,
+      'Complete your GoDirect247 selfie verification',
+      `
+        <p>Hi ${userData.fullName || 'there'},</p>
+        <p>Your GoDirect247 application has been received.</p>
+        <p>Please log in and take a selfie so we can protect your profile before you activate your cover.</p>
+        <p><a href="${typeof window !== 'undefined' ? `${window.location.origin}/login` : 'https://godirect247.com/login'}">Log in to GoDirect247</a></p>
+      `
+    );
 
     if (referredBy) {
       await addDoc(collection(db, 'referrals'), {
@@ -331,6 +362,57 @@ export async function updateMemberStatus(
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Update failed' };
+  }
+}
+
+export async function submitIdentitySelfie(
+  uid: string,
+  selfieDataUrl: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!selfieDataUrl.startsWith('data:image/')) throw new Error('Please upload a valid selfie image.');
+    if (selfieDataUrl.length > 900000) throw new Error('Selfie image is too large. Please try a smaller photo.');
+
+    await updateDoc(doc(db, 'users', uid), {
+      identitySelfieDataUrl: selfieDataUrl,
+      identityVerificationStatus: 'submitted',
+      identitySubmittedAt: serverTimestamp(),
+      identityReviewedAt: null,
+      identityReviewedBy: null,
+      identityRejectionReason: null,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Could not submit selfie' };
+  }
+}
+
+export async function updateIdentityVerificationStatus(
+  memberId: string,
+  status: 'approved' | 'rejected',
+  adminId: string,
+  reason = ''
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await updateDoc(doc(db, 'users', memberId), {
+      identityVerificationStatus: status,
+      identityReviewedAt: serverTimestamp(),
+      identityReviewedBy: adminId,
+      identityRejectionReason: status === 'rejected' ? reason || 'Selfie could not be verified.' : null,
+      updatedAt: serverTimestamp(),
+    });
+    await createNotification(
+      memberId,
+      'identity',
+      status === 'approved'
+        ? 'Your selfie verification has been approved. You can now activate your cover.'
+        : 'Your selfie verification was not approved. Please submit a clear selfie and try again.'
+    );
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Identity update failed' };
   }
 }
 

@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { MagnifyingGlass, X, SignOut, TrendUp } from '@phosphor-icons/react';
+import { CheckCircle, MagnifyingGlass, X, SignOut, TrendUp, Warning } from '@phosphor-icons/react';
 import { auth } from '@/lib/firebase';
 import {
   checkIsAdmin, getAllMembers, getPendingPayments, getAllRewards, getAllReferrals,
   verifyPayment, updateMemberStatus, logoutUser, formatDate,
   getAllWithdrawals, processWithdrawal, releaseReward, getAllTrios,
+  updateIdentityVerificationStatus,
 } from '@/lib/firebase-service';
 import type { UserData, Payment, Reward, Referral, Withdrawal, Trio } from '@/lib/types';
 
@@ -115,6 +116,22 @@ export default function AdminDashboardPage() {
       prev.map((m) => m.id === id ? { ...m, status, isActivated: status === 'Active' } : m)
     );
     setDrawer((prev) => prev?.id === id ? { ...prev, status, isActivated: status === 'Active' } : prev);
+    await loadData();
+  }
+
+  async function handleIdentityReview(id: string, status: 'approved' | 'rejected') {
+    const user = auth.currentUser;
+    if (!user) return;
+    const result = await updateIdentityVerificationStatus(id, status, user.uid);
+    if (!result.success) {
+      alert(result.error || 'Could not update identity status.');
+      return;
+    }
+    const identityVerificationStatus = status;
+    setMembers((prev) =>
+      prev.map((m) => m.id === id ? { ...m, identityVerificationStatus } : m)
+    );
+    setDrawer((prev) => prev?.id === id ? { ...prev, identityVerificationStatus } : prev);
     await loadData();
   }
 
@@ -598,6 +615,7 @@ export default function AdminDashboardPage() {
               <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-4 space-y-3">
                 {[
                   ['Status', <StatusBadge key="s" status={drawer.status ?? 'Pending'} />],
+                  ['Selfie Check', <span key="iv" className="text-white/70 capitalize">{(drawer.identityVerificationStatus || 'not_started').replace('_', ' ')}</span>],
                   ['Plan', <span key="p" className="text-white">{drawer.tier || '-'}</span>],
                   ['ID Number', <span key="id" className="text-white/70">{drawer.idNumber || '-'}</span>],
                   ['Email', <span key="e" className="text-white/70">{drawer.email || '-'}</span>],
@@ -620,6 +638,51 @@ export default function AdminDashboardPage() {
                     {v}
                   </div>
                 ))}
+              </div>
+
+              {/* Identity review */}
+              <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-white text-sm font-semibold">Selfie verification</p>
+                    <p className="text-white/40 text-xs capitalize">
+                      {(drawer.identityVerificationStatus || 'not_started').replace('_', ' ')}
+                    </p>
+                  </div>
+                  {drawer.identityVerificationStatus === 'approved' ? (
+                    <CheckCircle size={20} className="text-[#00a87e]" />
+                  ) : (
+                    <Warning size={20} className="text-[#f3cc20]" />
+                  )}
+                </div>
+                {drawer.identitySelfieDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={drawer.identitySelfieDataUrl}
+                    alt={`${drawer.fullName || 'Member'} selfie`}
+                    className="w-full rounded-xl border border-white/10 mb-3"
+                  />
+                ) : (
+                  <p className="text-white/40 text-xs bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3 mb-3">
+                    No selfie submitted yet.
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleIdentityReview(drawer.id, 'approved')}
+                    disabled={!drawer.identitySelfieDataUrl}
+                    className="bg-[#00a87e]/10 border border-[#00a87e]/20 text-[#00a87e] text-xs font-semibold py-2.5 rounded-xl hover:bg-[#00a87e]/20 transition-all disabled:opacity-40"
+                  >
+                    Approve selfie
+                  </button>
+                  <button
+                    onClick={() => handleIdentityReview(drawer.id, 'rejected')}
+                    disabled={!drawer.identitySelfieDataUrl}
+                    className="bg-[#e23b4a]/10 border border-[#e23b4a]/20 text-[#e23b4a] text-xs font-semibold py-2.5 rounded-xl hover:bg-[#e23b4a]/20 transition-all disabled:opacity-40"
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
 
               {/* Status actions */}

@@ -58,6 +58,12 @@ export interface UserData {
   funeralCoverActive: boolean;
   funeralCoverExpiry: Timestamp | null;
   applicationStatus: string;
+  identityVerificationStatus?: 'not_started' | 'submitted' | 'approved' | 'rejected';
+  identitySelfieDataUrl?: string | null;
+  identitySubmittedAt?: Timestamp | null;
+  identityReviewedAt?: Timestamp | null;
+  identityReviewedBy?: string | null;
+  identityRejectionReason?: string | null;
   status?: 'Active' | 'Pending' | 'Lapsed';
   createdAt?: Timestamp;
   shareCount?: number;
@@ -101,7 +107,7 @@ export interface Payment {
 export interface AppNotification {
   id: string;
   userId: string;
-  type: 'joined' | 'paid' | 'tier_up' | 'reward_ready' | 'share_reward';
+  type: 'joined' | 'paid' | 'tier_up' | 'reward_ready' | 'share_reward' | 'identity';
   message: string;
   read: boolean;
   createdAt: Timestamp;

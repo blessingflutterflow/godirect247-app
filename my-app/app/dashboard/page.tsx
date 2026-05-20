@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
   CheckCircle, Warning, SignOut, TrendUp, Gift, UserPlus,
-  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock,
+  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera,
 } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/auth-context';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
@@ -14,7 +14,7 @@ import {
   logoutUser, markNotificationRead, formatDate,
   recordActivationPayment, getReferralStats, isCampaignActive,
   requestWithdrawal, getUserWithdrawal, recordLinkShare, upgradeGenerosityStep,
-  getUserTrio,
+  getUserTrio, submitIdentitySelfie,
 } from '@/lib/firebase-service';
 import type { ReferralStats } from '@/lib/firebase-service';
 import type { Withdrawal, Trio } from '@/lib/types';
@@ -37,6 +37,33 @@ function localDate(value: Timestamp | null | undefined): string {
 function getActivationFee(tierName: string, planType: 'plus' | 'gold'): number {
   const tiers = planType === 'gold' ? GOLD_TIERS : PLUS_TIERS;
   return tiers.find((t) => t.name === tierName)?.feeAmount ?? ACTIVATION_AMOUNT;
+}
+
+function resizeSelfie(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read image.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not load image.'));
+      img.onload = () => {
+        const maxWidth = 720;
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not prepare image.'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function TierProgressBar({ stats }: { stats: ReferralStats }) {
@@ -83,6 +110,9 @@ function DashboardContent() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
   const [userTrio, setUserTrio] = useState<Trio | null>(null);
+  const [selfieSubmitting, setSelfieSubmitting] = useState(false);
+  const [selfieError, setSelfieError] = useState('');
+  const selfieInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -142,6 +172,10 @@ function DashboardContent() {
   async function handleActivate() {
     if (!user || !userData) return;
     setActivationError('');
+    if (userData.identityVerificationStatus !== 'approved') {
+      setActivationError('Please complete selfie verification before activating your cover.');
+      return;
+    }
     setActivating(true);
     const u = userData as UserData;
     const fee = getActivationFee(u.tier, u.planType);
@@ -223,6 +257,25 @@ function DashboardContent() {
     else refreshUserData();
   }
 
+  async function handleSelfieFile(file: File | null) {
+    if (!user || !file) return;
+    setSelfieSubmitting(true);
+    setSelfieError('');
+    try {
+      const selfieDataUrl = await resizeSelfie(file);
+      const result = await submitIdentitySelfie(user.uid, selfieDataUrl);
+      if (!result.success) {
+        setSelfieError(result.error || 'Could not submit selfie. Please try again.');
+      } else {
+        await refreshUserData();
+      }
+    } catch (err) {
+      setSelfieError(err instanceof Error ? err.message : 'Could not submit selfie. Please try again.');
+    }
+    setSelfieSubmitting(false);
+    if (selfieInputRef.current) selfieInputRef.current.value = '';
+  }
+
 
   if (loading) {
     return (
@@ -293,6 +346,7 @@ function DashboardContent() {
     paid: <Coins size={14} className="text-[#f3cc20]" />,
     tier_up: <TrendUp size={14} className="text-[#00a87e]" />,
     reward_ready: <Gift size={14} className="text-[#f3cc20]" />,
+    identity: <Camera size={14} className="text-sky-300" />,
   };
 
   const referralLink = typeof window !== 'undefined'
@@ -301,6 +355,10 @@ function DashboardContent() {
 
   const fee = getActivationFee(u.tier, u.planType);
   const campaignActive = isCampaignActive();
+  const identityStatus = u.identityVerificationStatus || 'not_started';
+  const identityApproved = identityStatus === 'approved';
+  const identitySubmitted = identityStatus === 'submitted';
+  const identityRejected = identityStatus === 'rejected';
 
   const step1Done = u.isActivated;
   const step2Done = (referralStats?.paid ?? 0) >= 2;
@@ -384,6 +442,58 @@ function DashboardContent() {
           </h1>
         </div>
 
+        {/* Identity verification card */}
+        {!identityApproved && (
+          <div className="ani2 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 bg-[#0682B4]/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Camera size={20} className="text-sky-300" />
+              </div>
+              <div>
+                <p className="font-display font-bold text-white text-base">Selfie verification required</p>
+                <p className="text-white/50 text-xs mt-0.5">
+                  Take a clear selfie to protect your profile before activating your cover.
+                </p>
+              </div>
+            </div>
+            {identitySubmitted && (
+              <p className="text-[#f3cc20] text-xs mb-3 bg-[#f3cc20]/10 border border-[#f3cc20]/20 rounded-xl px-3 py-2">
+                Selfie submitted. GoDirect247 will review it before activation is unlocked.
+              </p>
+            )}
+            {identityRejected && (
+              <p className="text-[#e23b4a] text-xs mb-3 bg-[#e23b4a]/10 border border-[#e23b4a]/20 rounded-xl px-3 py-2">
+                Your selfie was not approved. Please submit a new clear selfie.
+              </p>
+            )}
+            {selfieError && (
+              <p className="text-[#e23b4a] text-xs mb-3 bg-[#e23b4a]/10 border border-[#e23b4a]/20 rounded-xl px-3 py-2">
+                {selfieError}
+              </p>
+            )}
+            <input
+              ref={selfieInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              className="hidden"
+              onChange={(e) => handleSelfieFile(e.target.files?.[0] || null)}
+            />
+            <button
+              type="button"
+              onClick={() => selfieInputRef.current?.click()}
+              disabled={selfieSubmitting}
+              className="w-full bg-sky-400/10 border border-sky-300/20 text-sky-200 font-semibold py-3.5 rounded-xl hover:bg-sky-400/20 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              <Camera size={16} />
+              {selfieSubmitting ? 'Submitting selfie…' : identitySubmitted ? 'Upload a new selfie' : 'Take selfie'}
+            </button>
+            <p className="text-white/30 text-xs text-center mt-2">
+              One member account can still manage multiple packages after approval.
+            </p>
+          </div>
+        )}
+
         {/* Activation card */}
         {!u.isActivated && (
           <div className="ani2 bg-[#f3cc20]/10 border border-[#f3cc20]/40 rounded-2xl p-5 mb-4">
@@ -405,14 +515,16 @@ function DashboardContent() {
             )}
             <button
               onClick={handleActivate}
-              disabled={activating}
+              disabled={activating || !identityApproved}
               className="w-full bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3.5 rounded-xl hover:bg-[#c9a800] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {activating ? 'Processing…' : (
                 <>Pay Now (R{fee.toLocaleString()}) <ArrowRight size={16} /></>
               )}
             </button>
-            <p className="text-white/30 text-xs text-center mt-2">Secured by Yoco · Card payments accepted</p>
+            <p className="text-white/30 text-xs text-center mt-2">
+              {identityApproved ? 'Secured by Yoco · Card payments accepted' : 'Selfie verification approval required before payment'}
+            </p>
           </div>
         )}
 

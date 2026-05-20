@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -6,6 +8,17 @@ export async function POST(request: NextRequest) {
 
     if (!amountInCents || !userId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    const userSnap = await getDoc(doc(db, 'users', userId));
+    if (!userSnap.exists()) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
+    }
+    if (userSnap.data().identityVerificationStatus !== 'approved') {
+      return NextResponse.json(
+        { error: 'Selfie verification must be approved before activation.' },
+        { status: 403 }
+      );
     }
 
     const secret = process.env.YOCO_SECRET_KEY;
