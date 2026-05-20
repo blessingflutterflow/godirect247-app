@@ -5,9 +5,13 @@ export const REWARD_BONUS = 1050;
 export const REWARD_TOTAL = 3000;
 export const REWARD_DELAY_WEEKS = 6;
 export const CAMPAIGN_END_DATE = new Date('2026-05-30T23:59:59');
-export const SHARE_REWARD_AMOUNT = 0.10;
 export const SHARE_MIN_WITHDRAWAL = 100;
 export const MAX_DAILY_SHARES = 50;
+export const SIGNUP_COMMISSION_RATE = 0.05;
+export const ACTIVATION_COMMISSION_RATE = 0.10;
+export const PLUS_HANDSHAKE_COMMISSION = 150;
+export const HANDSHAKE_START_DATE = new Date('2026-05-25T00:00:00');
+export const HANDSHAKE_END_DATE = new Date('2026-09-30T23:59:59');
 
 
 export interface TierData {
@@ -58,4 +62,3 @@ export const GENEROSITY_STEPS: GenerosityStep[] = [
   { name: 'King Gold', seed: 25000, harvest: 50890, keep: 15090, description: 'King Status' },
   { name: 'Superior Gold', seed: 40000, harvest: 100090, keep: 10890, description: 'The Top' },
 ];
-

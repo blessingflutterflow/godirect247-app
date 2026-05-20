@@ -22,7 +22,24 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { UserData, Payment, AppNotification, Referral, Reward, Withdrawal, SignUpFormData, Trio } from './types';
-import { ACTIVATION_AMOUNT, TOTAL_ACTIVATION, REWARD_CASHBACK, REWARD_BONUS, REWARD_TOTAL, REWARD_DELAY_WEEKS, CAMPAIGN_END_DATE, SHARE_REWARD_AMOUNT, MAX_DAILY_SHARES, GENEROSITY_STEPS } from './constants';
+import {
+  ACTIVATION_AMOUNT,
+  TOTAL_ACTIVATION,
+  REWARD_CASHBACK,
+  REWARD_BONUS,
+  REWARD_TOTAL,
+  REWARD_DELAY_WEEKS,
+  CAMPAIGN_END_DATE,
+  MAX_DAILY_SHARES,
+  GENEROSITY_STEPS,
+  PLUS_TIERS,
+  GOLD_TIERS,
+  SIGNUP_COMMISSION_RATE,
+  ACTIVATION_COMMISSION_RATE,
+  PLUS_HANDSHAKE_COMMISSION,
+  HANDSHAKE_START_DATE,
+  HANDSHAKE_END_DATE,
+} from './constants';
 
 // ── SMS helper ────────────────────────────────────────────────────────────────
 
@@ -51,18 +68,37 @@ function generateReferralCode(): string {
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
-function getCommissionRate(count: number): number {
-  if (count >= 20) return 100;
-  if (count >= 10) return 75;
-  if (count >= 1) return 50;
-  return 0;
+function formatCurrency(value: number): string {
+  return `R${value.toLocaleString('en-ZA', { maximumFractionDigits: 2 })}`;
 }
 
-function getTierLabel(count: number): string {
-  if (count >= 20) return 'Platinum';
-  if (count >= 10) return 'Gold';
-  if (count >= 1) return 'Silver';
-  return 'Starter';
+function getActivationFee(tierName: string, planType: 'plus' | 'gold'): number {
+  const tiers = planType === 'gold' ? GOLD_TIERS : PLUS_TIERS;
+  return tiers.find((tier) => tier.name === tierName)?.feeAmount ?? ACTIVATION_AMOUNT;
+}
+
+function getShareRewardAmount(shareCount: number): number {
+  if (shareCount >= 41) return 5;
+  if (shareCount >= 31) return 4;
+  if (shareCount >= 21) return 3;
+  if (shareCount >= 11) return 2;
+  return 1;
+}
+
+function getNextReferralPayDate(fromDate = new Date()): Date {
+  const payDate = new Date(fromDate);
+  const day = payDate.getDay();
+  const minutes = payDate.getHours() * 60 + payDate.getMinutes();
+  const fridayCutoffMinutes = 13 * 60;
+  const daysToThisFriday = (5 - day + 7) % 7;
+  const missedCurrentWeek = day === 5 && minutes >= fridayCutoffMinutes;
+  payDate.setDate(payDate.getDate() + daysToThisFriday + (missedCurrentWeek ? 7 : 0) + 7);
+  payDate.setHours(9, 0, 0, 0);
+  return payDate;
+}
+
+function isHandshakeActive(now = new Date()): boolean {
+  return now >= HANDSHAKE_START_DATE && now <= HANDSHAKE_END_DATE;
 }
 
 export function formatDate(value: Timestamp | Date | null | undefined): string {
@@ -167,25 +203,40 @@ export async function signUpUser(
     );
 
     if (referredBy) {
+      const activationFee = getActivationFee(userData.tier, userData.planType);
+      const signupCommissionAmount = Math.round(activationFee * SIGNUP_COMMISSION_RATE * 100) / 100;
+      const potentialActivationCommission = Math.round(activationFee * ACTIVATION_COMMISSION_RATE * 100) / 100;
       await addDoc(collection(db, 'referrals'), {
         referrerId: referredBy,
         referredUserId: uid,
         referredUserName: userData.fullName,
         status: 'signed_up',
-        commissionAmount: 0,
+        commissionAmount: signupCommissionAmount,
+        signupCommissionAmount,
+        activationCommissionAmount: 0,
+        potentialActivationCommission,
+        handshakeCommissionAmount: 0,
+        duePaymentDate: Timestamp.fromDate(getNextReferralPayDate()),
         paidAt: null,
         createdAt: now,
       });
+      const referrerSnap = await getDoc(doc(db, 'users', referredBy));
+      if (referrerSnap.exists()) {
+        const referrerData = referrerSnap.data() as UserData;
+        await updateDoc(doc(db, 'users', referredBy), {
+          totalEarnings: (referrerData.totalEarnings || 0) + signupCommissionAmount,
+          updatedAt: now,
+        });
+      }
       await createNotification(
         referredBy,
         'joined',
-        `${userData.fullName || 'Someone'} joined using your referral link!`
+        `${userData.fullName || 'Someone'} joined using your referral link. Signup commission: ${formatCurrency(signupCommissionAmount)}.`
       );
-      const referrerSnap = await getDoc(doc(db, 'users', referredBy));
       if (referrerSnap.exists() && referrerSnap.data().phone) {
         sendSMSNotification(
           referrerSnap.data().phone as string,
-          `GoDirect247: ${userData.fullName || 'Someone'} just joined using your referral link! Get them to activate and earn your commission.`
+          `GoDirect247: ${userData.fullName || 'Someone'} joined using your link. Signup commission ${formatCurrency(signupCommissionAmount)}. Potential activation commission ${formatCurrency(potentialActivationCommission)}.`
         );
       }
     }
@@ -471,6 +522,10 @@ export interface ReferralStats {
   total: number;
   paid: number;
   earnings: number;
+  activatedEarnings: number;
+  potentialEarnings: number;
+  signupEarnings: number;
+  nextPayDate: Date;
   tier: string;
   commissionRate: number;
   nextTierAt: number | null;
@@ -486,16 +541,27 @@ export async function getReferralStats(uid: string): Promise<ReferralStats> {
   const total = allSnap.size;
   const paid = paidSnap.size;
   const earnings = userSnap.exists() ? ((userSnap.data().totalEarnings as number) || 0) : 0;
+  let activatedEarnings = 0;
+  let potentialEarnings = 0;
+  let signupEarnings = 0;
 
-  let tier = 'Starter';
-  let commissionRate = 0;
-  let nextTierAt: number | null = 1;
+  allSnap.docs.forEach((referralDoc) => {
+    const referral = referralDoc.data() as Referral;
+    signupEarnings += referral.signupCommissionAmount ?? 0;
+    activatedEarnings += referral.status === 'paid'
+      ? (referral.activationCommissionAmount ?? referral.commissionAmount ?? 0) + (referral.handshakeCommissionAmount ?? 0)
+      : 0;
+    potentialEarnings += referral.status === 'paid'
+      ? 0
+      : referral.potentialActivationCommission ?? 0;
+  });
 
-  if (paid >= 20) { tier = 'Platinum'; commissionRate = 100; nextTierAt = null; }
-  else if (paid >= 10) { tier = 'Gold'; commissionRate = 75; nextTierAt = 20; }
-  else if (paid >= 1) { tier = 'Silver'; commissionRate = 50; nextTierAt = 10; }
+  const tier = '10% Activation';
+  const commissionRate = ACTIVATION_COMMISSION_RATE * 100;
+  const nextTierAt = null;
+  const nextPayDate = getNextReferralPayDate();
 
-  return { total, paid, earnings, tier, commissionRate, nextTierAt };
+  return { total, paid, earnings, activatedEarnings, potentialEarnings, signupEarnings, nextPayDate, tier, commissionRate, nextTierAt };
 }
 
 export async function getAllRewards(): Promise<Reward[]> {
@@ -647,11 +713,13 @@ export async function recordLinkShare(uid: string): Promise<{ success: boolean; 
     }
 
     const newShareCount = (user.shareCount || 0) + 1;
-    const newShareEarnings = (user.shareEarnings || 0) + SHARE_REWARD_AMOUNT;
+    const shareRewardAmount = getShareRewardAmount(newShareCount);
+    const newShareEarnings = (user.shareEarnings || 0) + shareRewardAmount;
 
     await updateDoc(userRef, {
       shareCount: newShareCount,
       shareEarnings: newShareEarnings,
+      lastShareRewardAmount: shareRewardAmount,
       dailyShareCount: dailyCount + 1,
       lastShareDate: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -913,15 +981,9 @@ export async function markNotificationRead(notifId: string): Promise<void> {
 async function creditReferrerCommission(
   referrerId: string,
   referredUserId: string,
-  _amount: number
+  amount: number
 ): Promise<void> {
   const now = serverTimestamp();
-  const paidSnap = await getDocs(
-    query(collection(db, 'referrals'), where('referrerId', '==', referrerId), where('status', '==', 'paid'))
-  );
-  const paidCount = paidSnap.size;
-  const commissionAmount = getCommissionRate(paidCount + 1);
-
   const referralQuery = await getDocs(
     query(
       collection(db, 'referrals'),
@@ -930,34 +992,59 @@ async function creditReferrerCommission(
       limit(1)
     )
   );
-  if (!referralQuery.empty) {
-    await updateDoc(referralQuery.docs[0].ref, { status: 'paid', commissionAmount, paidAt: now, updatedAt: now });
-  }
+  if (referralQuery.empty) return;
+
+  const referralDoc = referralQuery.docs[0];
+  const referral = referralDoc.data() as Referral;
+  if (referral.status === 'paid') return;
+
+  const referredSnap = await getDoc(doc(db, 'users', referredUserId));
+  const referredUser = referredSnap.exists() ? (referredSnap.data() as UserData) : null;
+  const activationCommissionAmount = Math.round(amount * ACTIVATION_COMMISSION_RATE * 100) / 100;
+  const handshakeCommissionAmount =
+    referredUser?.planType === 'plus' && isHandshakeActive() ? PLUS_HANDSHAKE_COMMISSION : 0;
+  const totalActivationCommission = activationCommissionAmount + handshakeCommissionAmount;
+  const signupCommissionAmount = referral.signupCommissionAmount ?? 0;
+  const referralCreatedAt =
+    referral.createdAt && typeof referral.createdAt.toDate === 'function' ? referral.createdAt.toDate() : null;
+  const signupAndActivationSameTime =
+    referralCreatedAt ? Date.now() - referralCreatedAt.getTime() <= 30 * 60 * 1000 : false;
+  const commissionAmount = (signupAndActivationSameTime ? 0 : signupCommissionAmount) + totalActivationCommission;
+  const earningsToAdd = signupAndActivationSameTime
+    ? totalActivationCommission - signupCommissionAmount
+    : totalActivationCommission;
+
+  await updateDoc(referralDoc.ref, {
+    status: 'paid',
+    commissionAmount,
+    activationCommissionAmount,
+    handshakeCommissionAmount,
+    duePaymentDate: Timestamp.fromDate(getNextReferralPayDate()),
+    paidAt: now,
+    updatedAt: now,
+  });
 
   const referrerSnap = await getDoc(doc(db, 'users', referrerId));
-  if (referrerSnap.exists()) {
-    const referrerData = referrerSnap.data() as UserData;
-    await updateDoc(doc(db, 'users', referrerId), {
-      totalEarnings: (referrerData.totalEarnings || 0) + commissionAmount,
-      updatedAt: now,
-    });
-    await createNotification(referrerId, 'paid', `You earned R${commissionAmount}! A referral paid their activation fee.`);
-    sendSMSNotification(
-      referrerData.phone as string,
-      `GoDirect247: R${commissionAmount} earned! A referral just activated their policy. Log in to track your earnings.`
-    );
-    if (getCommissionRate(paidCount + 1) > getCommissionRate(paidCount)) {
-      await createNotification(
-        referrerId,
-        'tier_up',
-        `Commission tier increased! You now earn R${getCommissionRate(paidCount + 1)} per signup (${getTierLabel(paidCount + 1)} Tier).`
-      );
-      sendSMSNotification(
-        referrerData.phone as string,
-        `GoDirect247: You've reached ${getTierLabel(paidCount + 1)} tier! You now earn R${getCommissionRate(paidCount + 1)} per referral activation.`
-      );
-    }
-  }
+  if (!referrerSnap.exists()) return;
+
+  const referrerData = referrerSnap.data() as UserData;
+  await updateDoc(doc(db, 'users', referrerId), {
+    totalEarnings: (referrerData.totalEarnings || 0) + earningsToAdd,
+    updatedAt: now,
+  });
+
+  const handshakeText = handshakeCommissionAmount
+    ? ` Plus Plan handshake commission ${formatCurrency(handshakeCommissionAmount)} included.`
+    : '';
+  await createNotification(
+    referrerId,
+    'paid',
+    `Activation commission earned: ${formatCurrency(activationCommissionAmount)}.${handshakeText}`
+  );
+  sendSMSNotification(
+    referrerData.phone as string,
+    `GoDirect247: ${formatCurrency(activationCommissionAmount)} activation commission earned.${handshakeText} Log in to track your earnings.`
+  );
 }
 
 async function checkAndAwardPreLaunchReward(userId: string): Promise<void> {

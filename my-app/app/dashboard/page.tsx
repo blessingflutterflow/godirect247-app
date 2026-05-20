@@ -69,6 +69,21 @@ function formatCurrency(value: number): string {
   return `R${value.toLocaleString('en-ZA', { maximumFractionDigits: 2 })}`;
 }
 
+function formatReferralDate(value: Date | Timestamp | null | undefined): string {
+  if (!value) return '-';
+  const date = value instanceof Date ? value : value.toDate();
+  return date.toLocaleDateString('en-ZA', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function getCurrentShareRewardAmount(shareCount = 0): number {
+  const nextShare = shareCount + 1;
+  if (nextShare >= 41) return 5;
+  if (nextShare >= 31) return 4;
+  if (nextShare >= 21) return 3;
+  if (nextShare >= 11) return 2;
+  return 1;
+}
+
 function getCashbackSchedule(activationDate: Date, amount: number) {
   return [3, 6, 9, 12].map((monthOffset, index) => {
     const maturity = addMonths(activationDate, monthOffset);
@@ -120,20 +135,13 @@ function resizeSelfie(file: File): Promise<string> {
 
 function TierProgressBar({ stats }: { stats: ReferralStats }) {
   const paid = stats.paid;
-  let progress = 0;
-  let nextAt: number | null = 1;
-
-  if (paid >= 20) { progress = 100; nextAt = null; }
-  else if (paid >= 10) { progress = Math.round(((paid - 10) / 10) * 100); nextAt = 20; }
-  else if (paid >= 1) { progress = Math.round(((paid - 1) / 9) * 100); nextAt = 10; }
+  const progress = Math.round((paid / Math.max(stats.total, 1)) * 100);
 
   return (
     <div>
       <div className="flex justify-between text-xs text-white/50 mb-1.5">
-        <span>{stats.tier} Tier · R{stats.commissionRate}/referral</span>
-        {nextAt
-          ? <span>{paid}/{nextAt} to next tier</span>
-          : <span className="text-[#f3cc20]">Max tier reached!</span>}
+        <span>{stats.tier} · {stats.commissionRate}% of activation fee</span>
+        <span>{paid}/{stats.total} activated</span>
       </div>
       <div className="h-2 bg-white/10 rounded-full overflow-hidden">
         <div
@@ -920,7 +928,9 @@ function DashboardContent() {
           <div className="bg-[#f3cc20]/5 border border-[#f3cc20]/20 rounded-xl p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-white font-semibold text-xs uppercase tracking-wider">Generosity Rewards</p>
-              <span className="text-[#f3cc20] text-[10px] font-bold bg-[#f3cc20]/10 px-2 py-0.5 rounded-full">R0.10 per share</span>
+              <span className="text-[#f3cc20] text-[10px] font-bold bg-[#f3cc20]/10 px-2 py-0.5 rounded-full">
+                R{getCurrentShareRewardAmount(u.shareCount || 0)} next share
+              </span>
             </div>
             <div className="flex justify-between items-end">
               <div>
@@ -931,6 +941,11 @@ function DashboardContent() {
                 <p className="text-white/40 text-[10px] mb-0.5">Share Earnings</p>
                 <p className="font-display font-bold text-[#f3cc20] text-xl leading-none">R{(u.shareEarnings || 0).toLocaleString()}</p>
               </div>
+            </div>
+            <div className="mt-3 grid grid-cols-5 gap-1 text-center text-[9px] font-semibold text-white/45">
+              {['1-10 R1', '11-20 R2', '21-30 R3', '31-40 R4', '41-50 R5'].map((label) => (
+                <span key={label} className="rounded-md bg-white/5 px-1.5 py-1">{label}</span>
+              ))}
             </div>
             {u.shareEarnings && u.shareEarnings < SHARE_MIN_WITHDRAWAL ? (
               <div className="mt-3 h-1 bg-white/5 rounded-full overflow-hidden">
@@ -948,13 +963,17 @@ function DashboardContent() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-4">
             {[
               { label: 'Referred', value: referralStats?.total ?? '—' },
-              { label: 'Paid', value: referralStats?.paid ?? '—' },
+              { label: 'Activated', value: referralStats?.paid ?? '—' },
               {
-                label: 'Earned',
-                value: referralStats != null ? `R${(referralStats.earnings || 0).toLocaleString()}` : '—',
+                label: 'Potential',
+                value: referralStats != null ? formatCurrency(referralStats.potentialEarnings || 0) : '—',
+              },
+              {
+                label: 'Activated earnings',
+                value: referralStats != null ? formatCurrency(referralStats.activatedEarnings || 0) : '—',
               },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
@@ -966,6 +985,23 @@ function DashboardContent() {
 
           {/* Commission tier progress */}
           {referralStats && <TierProgressBar stats={referralStats} />}
+          {referralStats && (
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <p className="text-white/35 uppercase font-semibold text-[10px]">Signup commission</p>
+                  <p className="text-white font-bold mt-0.5">5% on signup</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white/35 uppercase font-semibold text-[10px]">Due payment</p>
+                  <p className="text-[#f3cc20] font-bold mt-0.5">{formatReferralDate(referralStats.nextPayDate)}</p>
+                </div>
+              </div>
+              <p className="mt-2 text-white/35 text-[10px] leading-relaxed">
+                Activation commission is 10% of the activation fee paid. Current-week referral payments close at 13:00 on Friday and are due the following Friday. Signups have 30 days to activate; after 30 days, the account may be deactivated and closed. The R150 Plus Plan handshake referral commission runs from 25 May to 30 September 2026.
+              </p>
+            </div>
+          )}
 
           {/* Pre-Launch Special tracker */}
           {campaignActive && (

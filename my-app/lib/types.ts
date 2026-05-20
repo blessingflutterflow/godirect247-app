@@ -68,6 +68,7 @@ export interface UserData {
   createdAt?: Timestamp;
   shareCount?: number;
   shareEarnings?: number;
+  lastShareRewardAmount?: number;
   lastShareDate?: Timestamp | null;
   dailyShareCount?: number;
   generosityStep?: number;
@@ -120,6 +121,11 @@ export interface Referral {
   referredUserName: string;
   status: 'signed_up' | 'paid';
   commissionAmount: number;
+  signupCommissionAmount?: number;
+  activationCommissionAmount?: number;
+  potentialActivationCommission?: number;
+  handshakeCommissionAmount?: number;
+  duePaymentDate?: Timestamp | null;
   paidAt: Timestamp | null;
   createdAt: Timestamp;
 }
