@@ -143,6 +143,8 @@ export interface Referral {
   activationCommissionAmount?: number;
   potentialActivationCommission?: number;
   handshakeCommissionAmount?: number;
+  handshakeMonth?: string | null;
+  handshakePaidOnSignup?: boolean;
   duePaymentDate?: Timestamp | null;
   paidAt: Timestamp | null;
   createdAt: Timestamp;

@@ -1004,8 +1004,10 @@ function DashboardContent() {
             <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <p className="text-white/35 uppercase font-semibold text-[10px]">Signup commission</p>
-                  <p className="text-white font-bold mt-0.5">5% on signup</p>
+                  <p className="text-white/35 uppercase font-semibold text-[10px]">Handshake</p>
+                  <p className="text-white font-bold mt-0.5">
+                    {referralStats.handshakesThisMonth}/3 used this month
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-white/35 uppercase font-semibold text-[10px]">Due payment</p>
@@ -1013,7 +1015,7 @@ function DashboardContent() {
                 </div>
               </div>
               <p className="mt-2 text-white/35 text-[10px] leading-relaxed">
-                Activation commission is 10% of the activation fee paid. Current-week referral payments close at 13:00 on Friday and are due the following Friday. Signups have 30 days to activate; after 30 days, the account may be deactivated and closed. The R150 Plus Plan handshake referral commission runs from 25 May to 30 September 2026.
+                Plus Plan handshake is R150 on signup, limited to 3 handshakes per month. No extra activation commission is paid on those handshake referrals. After the monthly limit, Plus referrals return to 10% activation commission. Gold Plan has no handshake. Current-week referral payments close at 13:00 on Friday and are due the following Friday.
               </p>
             </div>
           )}
