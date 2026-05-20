@@ -3,11 +3,11 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, ArrowLeft, CheckCircle, Eye, EyeSlash, PaperPlaneTilt } from '@phosphor-icons/react';
+import { ArrowRight, ArrowLeft, CheckCircle, Eye, EyeSlash, PaperPlaneTilt, UploadSimple } from '@phosphor-icons/react';
 import { Shield, Crown } from '@phosphor-icons/react';
 import { signUpUser } from '@/lib/firebase-service';
 import { PLUS_TIERS, GOLD_TIERS } from '@/lib/constants';
-import type { Dependent, SignUpFormData } from '@/lib/types';
+import type { Dependent, PolicyDocuments, SignUpFormData, UploadedDocument } from '@/lib/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,6 +62,83 @@ const inputCls =
 const selectCls =
   'w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3.5 text-white text-sm transition-all';
 
+function formatCurrency(value: number): string {
+  return `R${value.toLocaleString('en-ZA', { maximumFractionDigits: 2 })}`;
+}
+
+function readDocumentFile(file: File, label: string): Promise<UploadedDocument> {
+  return new Promise((resolve, reject) => {
+    if (file.size > 900000) {
+      reject(new Error('Please upload a document smaller than 900KB.'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read document.'));
+    reader.onload = () => {
+      resolve({
+        label,
+        fileName: file.name,
+        dataUrl: String(reader.result),
+        uploadedAt: new Date().toISOString(),
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function DocumentUploadField({
+  label,
+  required,
+  document,
+  onChange,
+}: {
+  label: string;
+  required?: boolean;
+  document: UploadedDocument | null | undefined;
+  onChange: (document: UploadedDocument | null) => void;
+}) {
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      onChange(await readDocumentFile(file, label));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not upload document.');
+      event.target.value = '';
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div>
+          <p className="text-white text-xs font-semibold">{label}</p>
+          <p className="text-white/35 text-[10px]">{required ? 'Required' : 'Optional'} · PDF, JPG or PNG</p>
+        </div>
+        {document && <CheckCircle size={16} weight="fill" className="text-[#00a87e] flex-shrink-0" />}
+      </div>
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-xs font-semibold text-white/60 hover:bg-white/10">
+        <UploadSimple size={14} />
+        {document ? 'Replace document' : 'Upload document'}
+        <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} />
+      </label>
+      {document && (
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="truncate text-[10px] text-white/45">{document.fileName}</p>
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-[10px] font-semibold text-[#e23b4a]/80 hover:text-[#e23b4a]"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 function SignupContent() {
@@ -83,6 +160,12 @@ function SignupContent() {
   const [dependents, setDependents] = useState<Dependent[]>([]);
   const [showExtended, setShowExtended] = useState(false);
   const [extended, setExtended] = useState<ExtendedForm>({ name: '', idNumber: '' });
+  const [documents, setDocuments] = useState<PolicyDocuments>({
+    policyHolderId: null,
+    spouseId: null,
+    dependentIds: [],
+    extendedFamilyId: null,
+  });
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -101,6 +184,11 @@ function SignupContent() {
 
   const tiers = planType === 'gold' ? GOLD_TIERS : PLUS_TIERS;
   const progress = (step / 4) * 100;
+  const selectedTier = tiers.find((t) => t.name === tier) ?? null;
+  const baseActivationFee = selectedTier?.feeAmount ?? 0;
+  const hasExtendedFamily = showExtended && Boolean(extended.name);
+  const extendedFamilyFee = hasExtendedFamily ? baseActivationFee * 0.2 : 0;
+  const totalApplicationFee = baseActivationFee + extendedFamilyFee;
 
   async function handleSendOtp() {
     setSendingOtp(true);
@@ -157,6 +245,10 @@ function SignupContent() {
         return;
       }
     }
+    if (step === 3 && !documents.policyHolderId) {
+      alert('Please upload the policy holder ID document before reviewing your application.');
+      return;
+    }
     if (step < 4) setStep((s) => (s + 1) as Step);
   }
 
@@ -175,11 +267,31 @@ function SignupContent() {
 
   function removeDependent(index: number) {
     setDependents((prev) => prev.filter((_, i) => i !== index));
+    setDocuments((prev) => ({
+      ...prev,
+      dependentIds: (prev.dependentIds || []).filter((_, i) => i !== index),
+    }));
+  }
+
+  function updateDependentDocument(index: number, document: UploadedDocument | null) {
+    setDocuments((prev) => {
+      const next = [...(prev.dependentIds || [])];
+      if (document) {
+        next[index] = document;
+      } else {
+        next.splice(index, 1);
+      }
+      return { ...prev, dependentIds: next };
+    });
   }
 
   async function handleSubmit() {
     if (!tcAccepted) { alert('Please accept the terms and conditions.'); return; }
     if (!planType || !tier) return;
+    if (!documents.policyHolderId) {
+      alert('Please upload the policy holder ID document before submitting.');
+      return;
+    }
     setSubmitting(true);
     setSubmitError('');
 
@@ -196,6 +308,10 @@ function SignupContent() {
       spouse: showSpouse && spouse.firstName ? { firstName: spouse.firstName, surname: spouse.surname, idNumber: spouse.idNumber, cell: spouse.cell } : null,
       dependents: dependents.filter((d) => d.name),
       extendedFamily: showExtended && extended.name ? { name: extended.name, idNumber: extended.idNumber } : null,
+      documents,
+      baseActivationFee,
+      extendedFamilyFee,
+      totalApplicationFee,
     };
 
     const result = await signUpUser(personal.email, personal.password, formData);
@@ -491,7 +607,10 @@ function SignupContent() {
             <div className="flex items-center justify-between mb-3">
               <p className="text-white/60 text-xs font-semibold uppercase tracking-wide">Spouse</p>
               <button
-                onClick={() => setShowSpouse(!showSpouse)}
+                onClick={() => {
+                  setShowSpouse(!showSpouse);
+                  if (showSpouse) setDocuments((prev) => ({ ...prev, spouseId: null }));
+                }}
                 className="bg-white/10 text-white/60 text-xs px-3 py-1.5 rounded-full hover:bg-white/20 transition-all"
               >
                 {showSpouse ? '− Remove' : '+ Add spouse'}
@@ -548,7 +667,10 @@ function SignupContent() {
                 Extended family <span className="text-white/30 normal-case font-normal">(optional)</span>
               </p>
               <button
-                onClick={() => setShowExtended(!showExtended)}
+                onClick={() => {
+                  setShowExtended(!showExtended);
+                  if (showExtended) setDocuments((prev) => ({ ...prev, extendedFamilyId: null }));
+                }}
                 className="bg-white/10 text-white/60 text-xs px-3 py-1.5 rounded-full hover:bg-white/20 transition-all"
               >
                 {showExtended ? '− Remove' : '+ Add'}
@@ -560,6 +682,68 @@ function SignupContent() {
                 <input type="text" value={extended.idNumber} onChange={(e) => setExtended({ ...extended, idNumber: e.target.value })} placeholder="Extended family ID number" className={inputCls} />
               </div>
             )}
+          </div>
+
+          {/* Documents */}
+          <div className="mb-6">
+            <div className="mb-3">
+              <p className="text-white/60 text-xs font-semibold uppercase tracking-wide">Documents</p>
+              <p className="text-white/35 text-xs mt-1">
+                Policy holder ID is required. Spouse, dependent and extended-family documents can be uploaded now or supplied later.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <DocumentUploadField
+                label="Policy Holder ID"
+                required
+                document={documents.policyHolderId}
+                onChange={(document) => setDocuments((prev) => ({ ...prev, policyHolderId: document }))}
+              />
+              {showSpouse && spouse.firstName && (
+                <DocumentUploadField
+                  label="Spouse ID"
+                  document={documents.spouseId}
+                  onChange={(document) => setDocuments((prev) => ({ ...prev, spouseId: document }))}
+                />
+              )}
+              {dependents.map((dep, index) => (
+                dep.name ? (
+                  <DocumentUploadField
+                    key={`dependent-doc-${index}`}
+                    label={`Dependent ${index + 1} birth certificate or ID`}
+                    document={documents.dependentIds?.[index] || null}
+                    onChange={(document) => updateDependentDocument(index, document)}
+                  />
+                ) : null
+              ))}
+              {showExtended && extended.name && (
+                <DocumentUploadField
+                  label="Extended family ID"
+                  document={documents.extendedFamilyId}
+                  onChange={(document) => setDocuments((prev) => ({ ...prev, extendedFamilyId: document }))}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="bg-[#f3cc20]/10 border border-[#f3cc20]/20 rounded-2xl p-4 mb-6">
+            <p className="text-[#f3cc20] text-xs font-bold uppercase tracking-wide mb-3">Amount due before processing</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-white/50">Selected package</span>
+                <span className="text-white font-semibold">{formatCurrency(baseActivationFee)}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-white/50">Extended family extra fee</span>
+                <span className="text-white font-semibold">
+                  {hasExtendedFamily ? `${formatCurrency(extendedFamilyFee)} (20%)` : 'R0'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4 border-t border-[#f3cc20]/20 pt-2">
+                <span className="text-white font-bold">Total due</span>
+                <span className="text-[#f3cc20] font-display font-extrabold">{formatCurrency(totalApplicationFee)}</span>
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-3">
@@ -592,6 +776,10 @@ function SignupContent() {
               ['Referred by', personal.referral || 'N/A'],
               ['Beneficiary', beneficiary.name || 'Not added'],
               ...(showSpouse && spouse.firstName ? [['Spouse', `${spouse.firstName} ${spouse.surname}`]] : []),
+              ['Policy Holder ID', documents.policyHolderId ? 'Uploaded' : 'Required'],
+              ['Spouse ID', documents.spouseId ? 'Uploaded' : showSpouse ? 'Not uploaded' : 'N/A'],
+              ['Dependent documents', `${documents.dependentIds?.filter(Boolean).length || 0} uploaded`],
+              ['Extended family document', documents.extendedFamilyId ? 'Uploaded' : hasExtendedFamily ? 'Not uploaded' : 'N/A'],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between items-start gap-4">
                 <span className="text-white/40 text-xs uppercase tracking-wide font-semibold flex-shrink-0">
@@ -600,6 +788,23 @@ function SignupContent() {
                 <span className="text-white text-right">{v}</span>
               </div>
             ))}
+          </div>
+
+          <div className="bg-[#f3cc20]/10 border border-[#f3cc20]/20 rounded-2xl p-5 mb-5 space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="text-white/50">Base activation fee</span>
+              <span className="text-white font-semibold">{formatCurrency(baseActivationFee)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-white/50">Extended family extra fee</span>
+              <span className="text-white font-semibold">
+                {hasExtendedFamily ? `${formatCurrency(extendedFamilyFee)} (20%)` : 'R0'}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-[#f3cc20]/20 pt-2">
+              <span className="text-white font-bold">Whole amount due</span>
+              <span className="text-[#f3cc20] font-display font-extrabold">{formatCurrency(totalApplicationFee)}</span>
+            </div>
           </div>
 
           {/* T&Cs */}

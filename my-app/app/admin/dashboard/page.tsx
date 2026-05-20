@@ -617,6 +617,8 @@ export default function AdminDashboardPage() {
                   ['Status', <StatusBadge key="s" status={drawer.status ?? 'Pending'} />],
                   ['Selfie Check', <span key="iv" className="text-white/70 capitalize">{(drawer.identityVerificationStatus || 'not_started').replace('_', ' ')}</span>],
                   ['Plan', <span key="p" className="text-white">{drawer.tier || '-'}</span>],
+                  ['Amount Due', <span key="due" className="text-[#f3cc20] font-semibold">R{(drawer.totalApplicationFee || drawer.baseActivationFee || 0).toLocaleString()}</span>],
+                  ['Extended Fee', <span key="extfee" className="text-white/70">R{(drawer.extendedFamilyFee || 0).toLocaleString()}</span>],
                   ['ID Number', <span key="id" className="text-white/70">{drawer.idNumber || '-'}</span>],
                   ['Email', <span key="e" className="text-white/70">{drawer.email || '-'}</span>],
                   ['Phone', <span key="ph" className="text-white/70">{drawer.phone || '-'}</span>],
@@ -638,6 +640,48 @@ export default function AdminDashboardPage() {
                     {v}
                   </div>
                 ))}
+              </div>
+
+              {/* Documents */}
+              <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-white text-sm font-semibold">Uploaded documents</p>
+                    <p className="text-white/40 text-xs">Policy holder ID is mandatory</p>
+                  </div>
+                  {drawer.documents?.policyHolderId ? (
+                    <CheckCircle size={20} className="text-[#00a87e]" />
+                  ) : (
+                    <Warning size={20} className="text-[#f3cc20]" />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {[
+                    drawer.documents?.policyHolderId,
+                    drawer.documents?.spouseId,
+                    ...(drawer.documents?.dependentIds || []),
+                    drawer.documents?.extendedFamilyId,
+                  ].filter(Boolean).map((document) => (
+                    <a
+                      key={`${document?.label}-${document?.fileName}`}
+                      href={document?.dataUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs hover:bg-white/[0.08]"
+                    >
+                      <span>
+                        <span className="block font-semibold text-white">{document?.label}</span>
+                        <span className="block text-white/35">{document?.fileName}</span>
+                      </span>
+                      <span className="text-[#f3cc20] font-semibold">Open</span>
+                    </a>
+                  ))}
+                  {!drawer.documents?.policyHolderId && (
+                    <p className="text-white/40 text-xs bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3">
+                      No mandatory policy holder ID document uploaded yet.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Identity review */}

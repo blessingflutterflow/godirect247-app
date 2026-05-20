@@ -24,6 +24,20 @@ export interface ExtendedFamily {
   idNumber: string;
 }
 
+export interface UploadedDocument {
+  label: string;
+  fileName: string;
+  dataUrl: string;
+  uploadedAt: string;
+}
+
+export interface PolicyDocuments {
+  policyHolderId: UploadedDocument | null;
+  spouseId?: UploadedDocument | null;
+  dependentIds?: UploadedDocument[];
+  extendedFamilyId?: UploadedDocument | null;
+}
+
 export interface GiftFamily {
   fullName: string;
   phone: string;
@@ -49,6 +63,10 @@ export interface UserData {
   spouse: Spouse | null;
   dependents: Dependent[];
   extendedFamily: ExtendedFamily | null;
+  documents?: PolicyDocuments;
+  baseActivationFee?: number;
+  extendedFamilyFee?: number;
+  totalApplicationFee?: number;
   isActivated: boolean;
   totalPaid: number;
   totalEarnings?: number;
@@ -172,4 +190,8 @@ export interface SignUpFormData {
   spouse: Spouse | null;
   dependents: Dependent[];
   extendedFamily: ExtendedFamily | null;
+  documents: PolicyDocuments;
+  baseActivationFee: number;
+  extendedFamilyFee: number;
+  totalApplicationFee: number;
 }

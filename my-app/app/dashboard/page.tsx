@@ -415,7 +415,9 @@ function DashboardContent() {
     ? `${window.location.origin}/signup?ref=${u.referralCode}`
     : `https://godirect247.co.za/signup?ref=${u.referralCode}`;
 
-  const fee = getActivationFee(u.tier, u.planType);
+  const fee = u.totalApplicationFee || getActivationFee(u.tier, u.planType);
+  const baseFee = u.baseActivationFee || getActivationFee(u.tier, u.planType);
+  const extendedFee = u.extendedFamilyFee || 0;
   const coverTaken = getTierCover(u.tier, u.planType);
   const campaignActive = isCampaignActive();
   const identityStatus = u.identityVerificationStatus || 'not_started';
@@ -571,6 +573,7 @@ function DashboardContent() {
                 <p className="font-display font-bold text-white text-base">Activate your cover</p>
                 <p className="text-white/50 text-xs mt-0.5">
                   Pay R{fee.toLocaleString()} to start your {u.tier} funeral cover
+                  {extendedFee > 0 ? `, including ${formatCurrency(extendedFee)} extended-family fee` : ''}
                 </p>
               </div>
             </div>
@@ -578,6 +581,18 @@ function DashboardContent() {
               <p className="text-[#e23b4a] text-xs mb-3 bg-[#e23b4a]/10 border border-[#e23b4a]/20 rounded-xl px-3 py-2">
                 {activationError}
               </p>
+            )}
+            {extendedFee > 0 && (
+              <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl bg-white/10 p-3">
+                  <p className="text-white/40">Base fee</p>
+                  <p className="text-white font-bold">{formatCurrency(baseFee)}</p>
+                </div>
+                <div className="rounded-xl bg-white/10 p-3">
+                  <p className="text-white/40">Extended family</p>
+                  <p className="text-white font-bold">{formatCurrency(extendedFee)}</p>
+                </div>
+              </div>
             )}
             <button
               onClick={handleActivate}
