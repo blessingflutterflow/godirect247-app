@@ -68,7 +68,9 @@ export function VoiceEnquiry() {
     recognition.start();
   }
 
-  const enquiryText = message.trim() || 'Hi GoDirect247, I would like to enquire before signing up.';
+  const enquiryText =
+    message.trim() ||
+    'Hi PEARL, GoDirect247 AI Agent, I would like to enquire before signing up.';
   const whatsappHref = `https://wa.me/27780638753?text=${encodeURIComponent(enquiryText)}`;
 
   return (
@@ -77,13 +79,14 @@ export function VoiceEnquiry() {
         <div className="grid gap-5 md:grid-cols-[0.9fr_1.1fr] md:items-center">
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#f3cc20]/25 bg-[#f3cc20]/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#f3cc20]">
-              <Microphone size={14} /> Voice enquiry
+              <Microphone size={14} /> PEARL · GoDirect247 AI Agent
             </div>
             <h2 className="font-display text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-              Ask before you sign up
+              Ask PEARL before you sign up
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-white/50">
-              Customers can speak or type a question and send it directly to the GoDirect247 team.
+              PEARL is the GoDirect247 AI Agent. Customers can speak or type a question before
+              joining, then send it directly to the GoDirect247 team.
             </p>
           </div>
 
