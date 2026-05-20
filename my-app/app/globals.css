@@ -48,3 +48,22 @@ input:focus, select:focus, textarea:focus {
   outline: none;
   box-shadow: 0 0 0 2px #f3cc20;
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #policy-certificate,
+  #policy-certificate * {
+    visibility: visible;
+  }
+
+  #policy-certificate {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: #ffffff;
+    color: #191c1f;
+  }
+}

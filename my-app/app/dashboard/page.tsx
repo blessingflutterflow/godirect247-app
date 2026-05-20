@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
   CheckCircle, Warning, SignOut, TrendUp, Gift, UserPlus,
-  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera,
+  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera, Printer,
 } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/auth-context';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
@@ -37,6 +37,57 @@ function localDate(value: Timestamp | null | undefined): string {
 function getActivationFee(tierName: string, planType: 'plus' | 'gold'): number {
   const tiers = planType === 'gold' ? GOLD_TIERS : PLUS_TIERS;
   return tiers.find((t) => t.name === tierName)?.feeAmount ?? ACTIVATION_AMOUNT;
+}
+
+function getTierCover(tierName: string, planType: 'plus' | 'gold'): string {
+  const tiers = planType === 'gold' ? GOLD_TIERS : PLUS_TIERS;
+  return tiers.find((t) => t.name === tierName)?.cover ?? '-';
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addMonths(date: Date, months: number): Date {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function previousBusinessDay(date: Date): Date {
+  const next = new Date(date);
+  while (next.getDay() === 0 || next.getDay() === 6) {
+    next.setDate(next.getDate() - 1);
+  }
+  return next;
+}
+
+function formatCurrency(value: number): string {
+  return `R${value.toLocaleString('en-ZA', { maximumFractionDigits: 2 })}`;
+}
+
+function getCashbackSchedule(activationDate: Date, amount: number) {
+  return [3, 6, 9, 12].map((monthOffset, index) => {
+    const maturity = addMonths(activationDate, monthOffset);
+    const payDate = previousBusinessDay(new Date(maturity.getFullYear(), maturity.getMonth() + 1, 5));
+    return {
+      label: `Cashback ${index + 1}`,
+      earnedPeriod: `${index * 13 + 1}-${(index + 1) * 13} weeks`,
+      amount: amount * 0.2,
+      payDate,
+    };
+  });
+}
+
+function getGoldWeeklySchedule(activationDate: Date, amount: number) {
+  const weeklyAmount = amount * 0.025;
+  return Array.from({ length: 52 }, (_, i) => ({
+    week: i + 1,
+    date: addDays(activationDate, (i + 1) * 7),
+    amount: weeklyAmount,
+  }));
 }
 
 function resizeSelfie(file: File): Promise<string> {
@@ -315,6 +366,8 @@ function DashboardContent() {
   const renewalDate = activationDate
     ? new Date(new Date(activationDate).setMonth(activationDate.getMonth() + 12))
     : null;
+  const accidentalMaturityDate = activationDate ? addDays(activationDate, 5) : null;
+  const naturalMaturityDate = activationDate ? addMonths(activationDate, 6) : null;
 
   let cashbackProgress = 0;
   let cashbackLabel = 'Not activated';
@@ -354,6 +407,7 @@ function DashboardContent() {
     : `https://godirect247.co.za/signup?ref=${u.referralCode}`;
 
   const fee = getActivationFee(u.tier, u.planType);
+  const coverTaken = getTierCover(u.tier, u.planType);
   const campaignActive = isCampaignActive();
   const identityStatus = u.identityVerificationStatus || 'not_started';
   const identityApproved = identityStatus === 'approved';
@@ -368,6 +422,9 @@ function DashboardContent() {
   const waLink = `https://wa.me/?text=${encodeURIComponent(
     `I'm using GoDirect247 for affordable funeral cover + cashback rewards. Join using my link: ${referralLink}`
   )}`;
+  const cashbackSchedule = activationDate ? getCashbackSchedule(activationDate, fee) : [];
+  const goldWeeklySchedule = activationDate && u.planType === 'gold' ? getGoldWeeklySchedule(activationDate, fee) : [];
+  const weeklyGoldAmount = fee * 0.025;
 
   return (
     <div className="bg-[#191c1f] min-h-screen text-white">
@@ -554,6 +611,144 @@ function DashboardContent() {
             </div>
           </div>
         </div>
+
+        {/* Policy certificate */}
+        {u.isActivated && activationDate && (
+          <div className="ani2 bg-white text-[#191c1f] rounded-2xl p-5 mb-4 print:rounded-none print:p-0 print:shadow-none">
+            <div id="policy-certificate" className="border border-[#d7dde2] rounded-xl p-5 print:border-0 print:rounded-none">
+              <div className="flex items-start justify-between gap-4 border-b border-[#d7dde2] pb-4 mb-4">
+                <div>
+                  <div className="font-display font-extrabold text-2xl">
+                    Go<span className="text-[#c9a800]">Direct</span>247
+                  </div>
+                  <p className="text-xs text-[#505a63] mt-1">Policy Certificate</p>
+                  <p className="text-[10px] text-[#505a63] mt-1">Zarkudu Group · FSP Licence JR 50841</p>
+                </div>
+                <div className="text-right text-[10px] text-[#505a63] leading-relaxed max-w-[190px]">
+                  <p className="font-bold text-[#191c1f] text-xs mb-1">Contact Details</p>
+                  <p>Sandton: 010 003 0789</p>
+                  <p>Cape Town: 021 140 8083</p>
+                  <p>East London: 014 547 0285</p>
+                  <p>WhatsApp: 078 063 8753</p>
+                  <p>godirect247.com</p>
+                </div>
+              </div>
+
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="font-display font-extrabold text-xl">Certificate of Cover</h2>
+                  <p className="text-xs text-[#505a63]">
+                    Issued after activation and subject to the terms and conditions below.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="print:hidden bg-[#191c1f] text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5"
+                >
+                  <Printer size={14} /> Print / Save PDF
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs mb-4">
+                {[
+                  ['Policy Holder', u.fullName || '-'],
+                  ['ID Number', u.idNumber || '-'],
+                  ['Email', u.email || '-'],
+                  ['Phone', u.phone || '-'],
+                  ['Plan', `${u.tier || '-'} (${u.planType === 'gold' ? 'Gold' : 'Plus'} Plan)`],
+                  ['Cover Taken', coverTaken],
+                  ['Activation Date', localDate(u.activationDate)],
+                  ['Renewal Date', renewalDate ? renewalDate.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
+                  ['Natural Death Maturity', naturalMaturityDate ? naturalMaturityDate.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
+                  ['Accidental Death Maturity', accidentalMaturityDate ? accidentalMaturityDate.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
+                ].map(([label, value]) => (
+                  <div key={label} className="border border-[#e4e8eb] rounded-lg px-3 py-2">
+                    <p className="text-[10px] uppercase font-bold text-[#8d969e]">{label}</p>
+                    <p className="font-semibold text-[#191c1f] mt-0.5">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div className="border border-[#e4e8eb] rounded-xl p-3">
+                  <p className="text-xs font-bold mb-2">Covered Members</p>
+                  <div className="space-y-1.5 text-xs">
+                    <p><span className="text-[#8d969e]">Main member:</span> {u.fullName || '-'}</p>
+                    {u.spouse?.firstName && (
+                      <p><span className="text-[#8d969e]">Spouse:</span> {u.spouse.firstName} {u.spouse.surname || ''}</p>
+                    )}
+                    {(u.dependents || []).filter((d) => d.name).map((d, i) => (
+                      <p key={i}><span className="text-[#8d969e]">Dependent {i + 1}:</span> {d.name} · {d.relation || 'Dependent'}</p>
+                    ))}
+                    {u.extendedFamily?.name && (
+                      <p><span className="text-[#8d969e]">Extended family:</span> {u.extendedFamily.name}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="border border-[#e4e8eb] rounded-xl p-3">
+                  <p className="text-xs font-bold mb-2">Beneficiary</p>
+                  <div className="space-y-1.5 text-xs">
+                    <p><span className="text-[#8d969e]">Name:</span> {u.beneficiary?.name || '-'}</p>
+                    <p><span className="text-[#8d969e]">ID Number:</span> {u.beneficiary?.idNumber || '-'}</p>
+                    <p><span className="text-[#8d969e]">Relation:</span> {u.beneficiary?.relation || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-[#e4e8eb] rounded-xl p-3 mb-4">
+                <p className="text-xs font-bold mb-2">20% Cashback Schedule</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                  {cashbackSchedule.map((item) => (
+                    <div key={item.label} className="bg-[#f4f4f4] rounded-lg p-2">
+                      <p className="font-bold text-[#191c1f]">{item.label}</p>
+                      <p className="text-[#505a63]">{item.earnedPeriod}</p>
+                      <p className="text-[#505a63]">{formatCurrency(item.amount)}</p>
+                      <p className="font-semibold">
+                        {item.payDate.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-[#505a63] mt-2">
+                  Cashback is payable after 3 months, on the 5th of the 4th month, or earlier when the 5th falls on a weekend or public holiday.
+                </p>
+              </div>
+
+              {u.planType === 'gold' && (
+                <div className="border border-[#e4e8eb] rounded-xl p-3 mb-4">
+                  <p className="text-xs font-bold mb-2">Gold Member Weekly Earnings</p>
+                  <p className="text-[10px] text-[#505a63] mb-2">
+                    Gold members earn 2.5% weekly for 52 weeks. Weekly earning shown: {formatCurrency(weeklyGoldAmount)}.
+                  </p>
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 text-[9px] max-h-32 overflow-y-auto print:max-h-none print:overflow-visible">
+                    {goldWeeklySchedule.map((item) => (
+                      <div key={item.week} className="bg-[#f4f4f4] rounded p-1.5">
+                        <p className="font-bold">W{item.week}</p>
+                        <p>{item.date.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short' })}</p>
+                        <p>{formatCurrency(item.amount)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="border border-[#e4e8eb] rounded-xl p-3 text-[10px] text-[#505a63] leading-relaxed">
+                <p className="text-xs font-bold text-[#191c1f] mb-1">Terms and Conditions</p>
+                <p>
+                  A 6-month waiting period applies for natural death. Accidental death cover matures after 5 days.
+                  A 12-month waiting period applies for suicide. Cashback is payable on the 5th day of the 4th month
+                  from activation, or earlier if the 5th is on a weekend or public holiday. Gold Plan weekly earnings
+                  are calculated at 2.5% weekly for 52 weeks where applicable. Renewal must be completed by the
+                  11th month to avoid policy lapse. Early withdrawal is payable at 10% and the remaining amount
+                  lapses. No advance requests for cashback or payout will be granted. Activation date means the
+                  date the member paid for the policy, not the date the application was submitted. Claims are processed
+                  within 24-48 hours after all required documents are received.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Cashback tracker */}
         <div className="ani2 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
