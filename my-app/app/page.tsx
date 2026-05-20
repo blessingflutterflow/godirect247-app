@@ -48,7 +48,7 @@ export default async function HomePage({
               </span>
             </div>
             <h1 className="ani2 font-display text-white text-5xl sm:text-6xl md:text-[78px] font-extrabold leading-none tracking-tight mb-6">
-              Funeral cover<br />
+              Affordable cover<br />
               that protects<br />
               <span className="text-[#f3cc20]">your family.</span>
             </h1>
