@@ -44,7 +44,7 @@ export default async function HomePage({
             <div className="ani1 inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5 mb-8">
               <ShieldCheck className="text-[#f3cc20]" size={14} />
               <span className="text-white/70 text-xs font-medium tracking-wide">
-                FSP Licence JR 50841 &middot; Zarkudu Group
+                FSP Licence JR 50841
               </span>
             </div>
             <h1 className="ani2 font-display text-white text-5xl sm:text-6xl md:text-[78px] font-extrabold leading-none tracking-tight mb-6">
