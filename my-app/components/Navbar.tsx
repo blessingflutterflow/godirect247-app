@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState } from 'react';
 import { List, X } from '@phosphor-icons/react';
 
@@ -12,9 +13,19 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
         <Link
           href="/"
-          className="font-display font-extrabold text-white text-xl tracking-tight"
+          className="flex items-center gap-2"
+          aria-label="GoDirect247 home"
         >
-          Go<span className="text-[#f3cc20]">Direct</span>247
+          <Image
+            src="/godirect247-logo.jpg"
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-full object-cover bg-white"
+          />
+          <span className="font-display font-extrabold text-white text-xl tracking-tight">
+            Go<span className="text-[#f3cc20]">Direct</span>247
+          </span>
         </Link>
 
         <div className="hidden md:flex items-center gap-8 text-sm font-medium">

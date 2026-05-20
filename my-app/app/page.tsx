@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ShieldCheck,
   Users,
@@ -32,43 +33,58 @@ export default async function HomePage({
       {/* ── Hero ── */}
       <section className="bg-[#191c1f] pt-16 min-h-screen flex flex-col justify-center">
         <div className="max-w-6xl mx-auto px-5 py-24 md:py-32">
-          <div className="max-w-3xl">
-            {ref && (
-              <div className="ani1 inline-flex items-center gap-2 bg-[#f3cc20]/10 border border-[#f3cc20]/30 rounded-full px-4 py-1.5 mb-6">
-                <Gift className="text-[#f3cc20]" size={14} />
-                <span className="text-[#f3cc20]/90 text-xs font-medium">
-                  You were invited — sign up to claim your funeral cover
+          <div className="grid lg:grid-cols-[1fr_360px] gap-12 items-center">
+            <div className="max-w-3xl">
+              {ref && (
+                <div className="ani1 inline-flex items-center gap-2 bg-[#f3cc20]/10 border border-[#f3cc20]/30 rounded-full px-4 py-1.5 mb-6">
+                  <Gift className="text-[#f3cc20]" size={14} />
+                  <span className="text-[#f3cc20]/90 text-xs font-medium">
+                    You were invited — sign up to claim your funeral cover
+                  </span>
+                </div>
+              )}
+              <div className="ani1 inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5 mb-8">
+                <ShieldCheck className="text-[#f3cc20]" size={14} />
+                <span className="text-white/70 text-xs font-medium tracking-wide">
+                  FSP Licence JR 50841
                 </span>
               </div>
-            )}
-            <div className="ani1 inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5 mb-8">
-              <ShieldCheck className="text-[#f3cc20]" size={14} />
-              <span className="text-white/70 text-xs font-medium tracking-wide">
-                FSP Licence JR 50841
-              </span>
+              <h1 className="ani2 font-display text-white text-5xl sm:text-6xl md:text-[78px] font-extrabold leading-none tracking-tight mb-6">
+                Affordable cover<br />
+                that protects<br />
+                <span className="text-[#f3cc20]">your family.</span>
+              </h1>
+              <p className="ani3 text-white/50 text-lg md:text-xl leading-relaxed max-w-lg mb-10">
+                No medical exams, claims support within 24-48 hours, and cashback rewards from
+                month 4.
+              </p>
+              <div className="ani4 flex flex-col sm:flex-row gap-3">
+                <Link
+                  href="/signup"
+                  className="bg-[#f3cc20] text-[#191c1f] font-display font-bold text-base px-8 py-4 rounded-full text-center hover:bg-[#c9a800] transition-all"
+                >
+                  Choose your plan
+                </Link>
+                <Link
+                  href="#how-it-works"
+                  className="border-2 border-white/25 text-white font-medium text-base px-8 py-4 rounded-full text-center hover:border-white/50 hover:bg-white/5 transition-all"
+                >
+                  How it works
+                </Link>
+              </div>
             </div>
-            <h1 className="ani2 font-display text-white text-5xl sm:text-6xl md:text-[78px] font-extrabold leading-none tracking-tight mb-6">
-              Affordable cover<br />
-              that protects<br />
-              <span className="text-[#f3cc20]">your family.</span>
-            </h1>
-            <p className="ani3 text-white/50 text-lg md:text-xl leading-relaxed max-w-lg mb-10">
-              No medical exams, claims support within 24-48 hours, and cashback rewards from
-              month 4.
-            </p>
-            <div className="ani4 flex flex-col sm:flex-row gap-3">
-              <Link
-                href="/signup"
-                className="bg-[#f3cc20] text-[#191c1f] font-display font-bold text-base px-8 py-4 rounded-full text-center hover:bg-[#c9a800] transition-all"
-              >
-                Choose your plan
-              </Link>
-              <Link
-                href="#how-it-works"
-                className="border-2 border-white/25 text-white font-medium text-base px-8 py-4 rounded-full text-center hover:border-white/50 hover:bg-white/5 transition-all"
-              >
-                How it works
-              </Link>
+
+            <div className="ani3 hidden lg:flex justify-end">
+              <div className="rounded-full bg-white p-5 shadow-2xl shadow-black/30 border border-white/20">
+                <Image
+                  src="/godirect247-logo.jpg"
+                  alt="GoDirect247 logo"
+                  width={288}
+                  height={288}
+                  priority
+                  className="h-72 w-72 rounded-full object-cover"
+                />
+              </div>
             </div>
           </div>
 

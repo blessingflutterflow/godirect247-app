@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export function Footer() {
   return (
@@ -6,8 +7,17 @@ export function Footer() {
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-10">
           <div>
-            <div className="font-display font-extrabold text-white text-xl mb-3">
-              Go<span className="text-[#f3cc20]">Direct</span>247
+            <div className="flex items-center gap-3 mb-3">
+              <Image
+                src="/godirect247-logo.jpg"
+                alt=""
+                width={48}
+                height={48}
+                className="h-12 w-12 rounded-full object-cover bg-white"
+              />
+              <div className="font-display font-extrabold text-white text-xl">
+                Go<span className="text-[#f3cc20]">Direct</span>247
+              </div>
             </div>
             <p className="text-white/40 text-sm leading-relaxed max-w-xs">
               A division of Zarkudu Group. FSP Licence JR 50841.

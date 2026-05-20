@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, Suspense } from 'react';
+import NextImage from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
@@ -615,14 +616,32 @@ function DashboardContent() {
         {/* Policy certificate */}
         {u.isActivated && activationDate && (
           <div className="ani2 bg-white text-[#191c1f] rounded-2xl p-5 mb-4 print:rounded-none print:p-0 print:shadow-none">
-            <div id="policy-certificate" className="border border-[#d7dde2] rounded-xl p-5 print:border-0 print:rounded-none">
+            <div id="policy-certificate" className="relative overflow-hidden border border-[#d7dde2] rounded-xl p-5 print:border-0 print:rounded-none">
+              <NextImage
+                src="/godirect247-logo.jpg"
+                alt=""
+                width={256}
+                height={222}
+                className="pointer-events-none absolute bottom-8 right-8 w-64 max-w-[55%] rounded-full opacity-[0.055] print:opacity-[0.07]"
+              />
               <div className="flex items-start justify-between gap-4 border-b border-[#d7dde2] pb-4 mb-4">
                 <div>
-                  <div className="font-display font-extrabold text-2xl">
-                    Go<span className="text-[#c9a800]">Direct</span>247
+                  <div className="flex items-center gap-3">
+                    <NextImage
+                      src="/godirect247-logo.jpg"
+                      alt="GoDirect247"
+                      width={64}
+                      height={64}
+                      className="h-16 w-16 rounded-full object-cover bg-white border border-[#e4e8eb]"
+                    />
+                    <div>
+                      <div className="font-display font-extrabold text-2xl">
+                        Go<span className="text-[#c9a800]">Direct</span>247
+                      </div>
+                      <p className="text-xs text-[#505a63] mt-1">Policy Certificate</p>
+                      <p className="text-[10px] text-[#505a63] mt-1">Zarkudu Group · FSP Licence JR 50841</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-[#505a63] mt-1">Policy Certificate</p>
-                  <p className="text-[10px] text-[#505a63] mt-1">Zarkudu Group · FSP Licence JR 50841</p>
                 </div>
                 <div className="text-right text-[10px] text-[#505a63] leading-relaxed max-w-[190px]">
                   <p className="font-bold text-[#191c1f] text-xs mb-1">Contact Details</p>
