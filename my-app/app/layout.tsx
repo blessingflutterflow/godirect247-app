@@ -5,7 +5,7 @@ import { AuthProvider } from '@/lib/auth-context';
 export const metadata: Metadata = {
   title: 'GoDirect247 — Funeral Cover & Family Protection',
   description:
-    'Affordable funeral cover with real cashback rewards. Two plans, six tiers — peace of mind for your whole family.',
+    'Family funeral cover with no medical exams, fast claims, and cashback rewards from month 4.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -8,7 +8,6 @@ import {
   Lightning,
   ShareNetwork,
   Heartbeat,
-  Phone,
   Gift,
   WhatsappLogo,
 } from '@phosphor-icons/react/dist/ssr';
@@ -55,8 +54,8 @@ export default async function HomePage({
               while you cover.
             </h1>
             <p className="ani3 text-white/50 text-lg md:text-xl leading-relaxed max-w-lg mb-10">
-              Affordable funeral cover with real cashback rewards. Two plans, six tiers &mdash; peace
-              of mind for your whole family.
+              Family funeral cover with no medical exams, fast claims, and cashback rewards
+              from month 4.
             </p>
             <div className="ani4 flex flex-col sm:flex-row gap-3">
               <Link
