@@ -48,14 +48,13 @@ export default async function HomePage({
               </span>
             </div>
             <h1 className="ani2 font-display text-white text-5xl sm:text-6xl md:text-[78px] font-extrabold leading-none tracking-tight mb-6">
-              Protect your<br />
-              family. <span className="text-[#f3cc20]">Earn</span>
-              <br />
-              while you cover.
+              Funeral cover<br />
+              that protects<br />
+              <span className="text-[#f3cc20]">your family.</span>
             </h1>
             <p className="ani3 text-white/50 text-lg md:text-xl leading-relaxed max-w-lg mb-10">
-              Family funeral cover with no medical exams, fast claims, and cashback rewards
-              from month 4.
+              No medical exams, claims support within 24-48 hours, and cashback rewards from
+              month 4.
             </p>
             <div className="ani4 flex flex-col sm:flex-row gap-3">
               <Link
