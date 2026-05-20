@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, ArrowLeft, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react';
+import { ArrowRight, ArrowLeft, CheckCircle, Eye, EyeSlash, PaperPlaneTilt } from '@phosphor-icons/react';
 import { Shield, Crown } from '@phosphor-icons/react';
 import { signUpUser } from '@/lib/firebase-service';
 import { PLUS_TIERS, GOLD_TIERS } from '@/lib/constants';
@@ -20,6 +20,7 @@ interface PersonalForm {
   phone: string;
   email: string;
   password: string;
+  confirmPassword: string;
   employment: string;
   source: string;
   referral: string;
@@ -71,9 +72,11 @@ function SignupContent() {
   const [planType, setPlanType] = useState<PlanType | null>(null);
   const [tier, setTier] = useState<string | null>(null);
   const [personal, setPersonal] = useState<PersonalForm>({
-    name: '', idNumber: '', phone: '', email: '', password: '',
+    name: '', idNumber: '', phone: '', email: '', password: '', confirmPassword: '',
     employment: '', source: '', referral: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [beneficiary, setBeneficiary] = useState<BeneficiaryForm>({ name: '', idNumber: '', relation: '' });
   const [showSpouse, setShowSpouse] = useState(false);
   const [spouse, setSpouse] = useState<SpouseForm>({ firstName: '', surname: '', idNumber: '', cell: '' });
@@ -143,6 +146,10 @@ function SignupContent() {
       }
       if (!personal.password || personal.password.length < 6) {
         alert('Password must be at least 6 characters.');
+        return;
+      }
+      if (personal.password !== personal.confirmPassword) {
+        alert('Please make sure both passwords match.');
         return;
       }
       if (!phoneVerified) {
@@ -387,7 +394,42 @@ function SignupContent() {
               <input type="email" value={personal.email} onChange={(e) => setPersonal({ ...personal, email: e.target.value })} placeholder="you@example.com" className={inputCls} />
             </Field>
             <Field label="Password">
-              <input type="password" value={personal.password} onChange={(e) => setPersonal({ ...personal, password: e.target.value })} placeholder="Create a password (min 6 chars)" className={inputCls} />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={personal.password}
+                  onChange={(e) => setPersonal({ ...personal, password: e.target.value })}
+                  placeholder="Create a password (min 6 chars)"
+                  className={`${inputCls} pr-12`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((show) => !show)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/45 hover:text-white/75 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </Field>
+            <Field label="Confirm password">
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={personal.confirmPassword}
+                  onChange={(e) => setPersonal({ ...personal, confirmPassword: e.target.value })}
+                  placeholder="Repeat your password"
+                  className={`${inputCls} pr-12`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((show) => !show)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/45 hover:text-white/75 transition-colors"
+                  aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'}
+                >
+                  {showConfirmPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </Field>
             <Field label="Employment status">
               <select value={personal.employment} onChange={(e) => setPersonal({ ...personal, employment: e.target.value })} className={selectCls}>

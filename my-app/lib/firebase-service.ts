@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
@@ -173,6 +174,25 @@ export async function loginUser(
     return { success: true, uid: cred.user.uid };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Login failed' };
+  }
+}
+
+export async function sendPasswordReset(
+  email: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actionCodeSettings =
+      typeof window !== 'undefined'
+        ? { url: `${window.location.origin}/login`, handleCodeInApp: false }
+        : undefined;
+
+    await sendPasswordResetEmail(auth, email, actionCodeSettings);
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Could not send reset email',
+    };
   }
 }
 
