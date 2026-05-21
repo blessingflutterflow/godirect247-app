@@ -876,8 +876,7 @@ function DashboardContent() {
         </div>
 
         {/* Additional Packages */}
-        {u.isActivated && (
-          <div className="ani2 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
+        <div className="ani2 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Plus size={20} className="text-[#f3cc20]" />
@@ -898,7 +897,7 @@ function DashboardContent() {
 
             {additionalPolicies.length === 0 ? (
               <p className="text-white/40 text-xs mb-4">
-                Add another policy for yourself or a family member. It runs alongside your existing cover with its own cashback schedule.
+                Add a policy for yourself or a family member. Each package has its own main member, beneficiary, activation date and cashback schedule — you can buy one even before activating your main cover.
               </p>
             ) : (
               <div className="space-y-2 mb-4">
@@ -940,7 +939,6 @@ function DashboardContent() {
               <Plus size={16} weight="bold" /> Buy another package
             </Link>
           </div>
-        )}
 
           {/* Generosity Rewards Roadmap */}
           <div className="bg-gradient-to-br from-[#f3cc20]/20 to-transparent border border-[#f3cc20]/30 rounded-2xl p-5 mb-4 shadow-lg shadow-[#f3cc20]/5">
