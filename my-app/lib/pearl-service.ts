@@ -17,7 +17,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { PEARL_PLANS, type PearlPlan, type PearlSubscription, type Product, type Order, type CartItem, type MerchSize } from './pearl-types';
+import { PEARL_PLANS, DELIVERY_OPTIONS, type PearlPlan, type PearlSubscription, type Product, type Order, type CartItem, type MerchSize, type DeliveryRegion } from './pearl-types';
 
 const SUBS = 'pearlSubscriptions';
 const PRODUCTS = 'products';
@@ -215,12 +215,20 @@ export async function createOrder(payload: {
   shippingCity: string;
   shippingPostalCode: string;
   items: CartItem[];
-}): Promise<{ success: boolean; id?: string; error?: string }> {
+  deliveryRegion: DeliveryRegion;
+}): Promise<{ success: boolean; id?: string; totalAmount?: number; error?: string }> {
   try {
-    const totalAmount = payload.items.reduce((sum, it) => sum + it.priceAmount * it.qty, 0);
+    const subtotalAmount = payload.items.reduce(
+      (sum, it) => sum + it.priceAmount * it.qty,
+      0,
+    );
+    const deliveryFee = DELIVERY_OPTIONS[payload.deliveryRegion].fee;
+    const totalAmount = subtotalAmount + deliveryFee;
     const now = serverTimestamp();
     const ref = await addDoc(collection(db, ORDERS), {
       ...payload,
+      subtotalAmount,
+      deliveryFee,
       totalAmount,
       status: 'pending',
       checkoutId: null,
@@ -228,7 +236,7 @@ export async function createOrder(payload: {
       createdAt: now,
       updatedAt: now,
     });
-    return { success: true, id: ref.id };
+    return { success: true, id: ref.id, totalAmount };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create order' };
   }

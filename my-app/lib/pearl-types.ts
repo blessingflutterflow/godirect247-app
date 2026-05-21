@@ -77,6 +77,26 @@ export interface CartItem {
   qty: number;
 }
 
+export type DeliveryRegion = 'nationwide' | 'sadc';
+
+export const DELIVERY_OPTIONS: Record<
+  DeliveryRegion,
+  { id: DeliveryRegion; label: string; fee: number; eta: string }
+> = {
+  nationwide: {
+    id: 'nationwide',
+    label: 'Nationwide (South Africa)',
+    fee: 99,
+    eta: '5–7 working days',
+  },
+  sadc: {
+    id: 'sadc',
+    label: 'SADC Region',
+    fee: 199,
+    eta: '14–21 working days',
+  },
+};
+
 export interface Order {
   id: string;
   customerName: string;
@@ -86,6 +106,9 @@ export interface Order {
   shippingCity: string;
   shippingPostalCode: string;
   items: CartItem[];
+  subtotalAmount: number;
+  deliveryRegion: DeliveryRegion;
+  deliveryFee: number;
   totalAmount: number;
   status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
   checkoutId: string | null;

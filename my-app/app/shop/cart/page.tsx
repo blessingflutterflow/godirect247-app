@@ -8,6 +8,7 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { useCart } from '@/components/CartContext';
 import { createOrder, attachCheckoutToOrder } from '@/lib/pearl-service';
+import { DELIVERY_OPTIONS, type DeliveryRegion } from '@/lib/pearl-types';
 
 function CartPageInner() {
   const { items, total, remove, setQty } = useCart();
@@ -21,8 +22,12 @@ function CartPageInner() {
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [postal, setPostal] = useState('');
+  const [deliveryRegion, setDeliveryRegion] = useState<DeliveryRegion>('nationwide');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const deliveryFee = DELIVERY_OPTIONS[deliveryRegion].fee;
+  const grandTotal = total + deliveryFee;
 
   async function handleCheckout(e: React.FormEvent) {
     e.preventDefault();
@@ -45,17 +50,19 @@ function CartPageInner() {
         shippingCity: city,
         shippingPostalCode: postal,
         items,
+        deliveryRegion,
       });
       if (!order.success || !order.id) {
         setError(order.error || 'Could not place order.');
         setLoading(false);
         return;
       }
+      const payable = order.totalAmount ?? grandTotal;
       const res = await fetch('/api/shop/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amountInCents: total * 100,
+          amountInCents: payable * 100,
           orderId: order.id,
           email,
           fullName: name,
@@ -113,14 +120,37 @@ function CartPageInner() {
                 Delivery details
               </h2>
 
-              <div className="bg-[#f3cc20]/5 border border-[#f3cc20]/20 rounded-xl p-4 mb-5 text-xs text-white/75 space-y-1">
-                <p>
-                  <span className="text-[#f3cc20] font-semibold">R99</span> · Nationwide delivery, 5–7 working days.
-                </p>
-                <p>
-                  <span className="text-[#f3cc20] font-semibold">R199</span> · SADC Region, 14–21 working days.
-                </p>
+              <p className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-2">
+                Delivery region
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3 mb-5">
+                {(Object.values(DELIVERY_OPTIONS)).map((opt) => {
+                  const selected = deliveryRegion === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setDeliveryRegion(opt.id)}
+                      className={`text-left rounded-xl border p-4 transition-all ${
+                        selected
+                          ? 'bg-[#f3cc20]/10 border-[#f3cc20]'
+                          : 'bg-white/5 border-white/15 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-white font-semibold text-sm">{opt.label}</span>
+                        <span className="text-[#f3cc20] font-display font-extrabold text-base">
+                          R{opt.fee}
+                        </span>
+                      </div>
+                      <span className="text-white/50 text-xs">{opt.eta}</span>
+                    </button>
+                  );
+                })}
               </div>
+              <p className="text-white/40 text-[11px] mb-5">
+                Delivery only — no in-person collection.
+              </p>
 
               <div className="grid sm:grid-cols-2 gap-4 mb-5">
                 <Field label="Full name" value={name} onChange={setName} />
@@ -148,7 +178,7 @@ function CartPageInner() {
               >
                 {loading
                   ? 'Preparing payment…'
-                  : `Pay R${total.toLocaleString()} via Yoco`}
+                  : `Pay R${grandTotal.toLocaleString()} via Yoco`}
               </button>
               <p className="text-center text-white/35 text-xs mt-3">
                 Secure payment by Yoco. You&apos;ll receive an order confirmation by email.
@@ -222,11 +252,27 @@ function CartPageInner() {
                       </li>
                     ))}
                   </ul>
-                  <div className="border-t border-white/10 pt-4 flex items-baseline justify-between">
-                    <span className="text-white/55 text-sm">Total</span>
-                    <span className="text-[#f3cc20] font-display font-extrabold text-2xl">
-                      R{total.toLocaleString()}
-                    </span>
+                  <div className="border-t border-white/10 pt-4 space-y-2">
+                    <div className="flex items-baseline justify-between text-sm">
+                      <span className="text-white/55">Subtotal</span>
+                      <span className="text-white font-semibold">
+                        R{total.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between text-sm">
+                      <span className="text-white/55">
+                        Delivery · {DELIVERY_OPTIONS[deliveryRegion].label}
+                      </span>
+                      <span className="text-white font-semibold">
+                        R{deliveryFee.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between pt-2 border-t border-white/10">
+                      <span className="text-white/55 text-sm">Total</span>
+                      <span className="text-[#f3cc20] font-display font-extrabold text-2xl">
+                        R{grandTotal.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </>
               )}
