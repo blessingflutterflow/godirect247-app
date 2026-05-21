@@ -1,9 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { CheckCircle, MagnifyingGlass, X, SignOut, TrendUp, Warning } from '@phosphor-icons/react';
+import { CheckCircle, MagnifyingGlass, X, SignOut, TrendUp, Warning, ShoppingBag } from '@phosphor-icons/react';
 import { auth } from '@/lib/firebase';
 import {
   checkIsAdmin, getAllMembers, getPendingPayments, getAllRewards, getAllReferrals,
@@ -183,6 +184,12 @@ export default function AdminDashboardPage() {
           <span className="text-white/30 font-normal text-sm ml-1">Admin</span>
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <Link
+            href="/admin/dashboard/merchandise"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-[#f3cc20] border border-[#f3cc20]/30 bg-[#f3cc20]/10 hover:bg-[#f3cc20]/20 px-3 py-1.5 rounded-full transition-all"
+          >
+            <ShoppingBag size={12} weight="fill" /> Merchandise
+          </Link>
           <span className="text-white/50 text-sm hidden sm:block">{adminEmail}</span>
           <button
             onClick={handleSignOut}

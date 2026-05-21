@@ -32,11 +32,14 @@ export function Navbar() {
           <Link href="/#plans" className="text-white/60 hover:text-white transition-colors">
             Plans
           </Link>
+          <Link href="/pearl" className="text-white/60 hover:text-white transition-colors">
+            PEARL AI
+          </Link>
+          <Link href="/shop" className="text-white/60 hover:text-white transition-colors">
+            Shop
+          </Link>
           <Link href="/#how-it-works" className="text-white/60 hover:text-white transition-colors">
             How it works
-          </Link>
-          <Link href="/#benefits" className="text-white/60 hover:text-white transition-colors">
-            Benefits
           </Link>
         </div>
 
@@ -69,15 +72,18 @@ export function Navbar() {
           <Link href="/#plans" onClick={() => setOpen(false)} className="text-white/70 py-1">
             Plans
           </Link>
+          <Link href="/pearl" onClick={() => setOpen(false)} className="text-white/70 py-1">
+            PEARL AI
+          </Link>
+          <Link href="/shop" onClick={() => setOpen(false)} className="text-white/70 py-1">
+            Shop
+          </Link>
           <Link
             href="/#how-it-works"
             onClick={() => setOpen(false)}
             className="text-white/70 py-1"
           >
             How it works
-          </Link>
-          <Link href="/#benefits" onClick={() => setOpen(false)} className="text-white/70 py-1">
-            Benefits
           </Link>
           <div className="border-t border-white/10 pt-4 flex flex-col gap-3">
             <Link
