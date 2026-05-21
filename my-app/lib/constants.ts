@@ -30,7 +30,7 @@ export const PLUS_TIERS: TierData[] = [
   { name: 'Premier Plus', cover: 'R25,000', coverAmount: 25000, fee: 'R1,700', feeAmount: 1700 },
   { name: 'Prestige Plus', cover: 'R25,000', coverAmount: 25000, fee: 'R2,200', feeAmount: 2200 },
   { name: 'King Plus', cover: 'R30,000', coverAmount: 30000, fee: 'R3,000', feeAmount: 3000 },
-  { name: 'Superior Plus', cover: 'R60,000', coverAmount: 60000, fee: 'R3,000', feeAmount: 3000, isTop: true },
+  { name: 'Superior Plus', cover: 'R60,000', coverAmount: 60000, fee: 'R6,000', feeAmount: 6000, isTop: true },
 ];
 
 export const GOLD_TIERS: TierData[] = [

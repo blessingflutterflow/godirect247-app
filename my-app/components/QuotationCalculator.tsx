@@ -142,7 +142,7 @@ function getCashbackSchedule(activationDate: Date, feeAmount: number) {
 
 function getGoldWeeklySummary(activationDate: Date, feeAmount: number) {
   const firstPayDate = getFirstGoldPayoutDate(activationDate);
-  const weeklyAmount = feeAmount * 0.025;
+  const weeklyAmount = feeAmount * 0.05;
   return {
     weeklyAmount,
     firstPayDate,
@@ -203,7 +203,7 @@ export function QuotationCalculator() {
           </div>
           <h3 className="font-display text-2xl font-extrabold text-white">Estimate package earnings</h3>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/50">
-            Compare 20% cashback on Plus and Gold packages. Gold quotations also include the 2.5%
+            Compare 20% cashback on Plus and Gold packages. Gold quotations also include the 5%
             weekly earning payable every Friday for 52 weeks.
           </p>
         </div>
@@ -289,7 +289,7 @@ export function QuotationCalculator() {
             <p className="mt-2 font-display text-2xl font-extrabold text-white">
               {formatCurrency(quote.weekly.weeklyAmount)}
             </p>
-            <p className="mt-1 text-xs text-white/40">2.5% every Friday for 52 weeks.</p>
+            <p className="mt-1 text-xs text-white/40">5% every Friday for 52 weeks.</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
             <p className="text-xs font-bold uppercase tracking-wide text-white/40">First Friday payout</p>

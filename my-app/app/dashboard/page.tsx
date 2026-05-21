@@ -98,7 +98,7 @@ function getCashbackSchedule(activationDate: Date, amount: number) {
 }
 
 function getGoldWeeklySchedule(activationDate: Date, amount: number) {
-  const weeklyAmount = amount * 0.025;
+  const weeklyAmount = amount * 0.05;
   return Array.from({ length: 52 }, (_, i) => ({
     week: i + 1,
     date: addDays(activationDate, (i + 1) * 7),
@@ -435,7 +435,7 @@ function DashboardContent() {
   )}`;
   const cashbackSchedule = activationDate ? getCashbackSchedule(activationDate, fee) : [];
   const goldWeeklySchedule = activationDate && u.planType === 'gold' ? getGoldWeeklySchedule(activationDate, fee) : [];
-  const weeklyGoldAmount = fee * 0.025;
+  const weeklyGoldAmount = fee * 0.05;
 
   return (
     <div className="bg-[#191c1f] min-h-screen text-white">
@@ -761,7 +761,7 @@ function DashboardContent() {
                 <div className="border border-[#e4e8eb] rounded-xl p-3 mb-4">
                   <p className="text-xs font-bold mb-2">Gold Member Weekly Earnings</p>
                   <p className="text-[10px] text-[#505a63] mb-2">
-                    Gold members earn 2.5% weekly for 52 weeks. Weekly earning shown: {formatCurrency(weeklyGoldAmount)}.
+                    Gold members earn 5% weekly for 52 weeks. Weekly earning shown: {formatCurrency(weeklyGoldAmount)}.
                   </p>
                   <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 text-[9px] max-h-32 overflow-y-auto print:max-h-none print:overflow-visible">
                     {goldWeeklySchedule.map((item) => (
@@ -781,7 +781,7 @@ function DashboardContent() {
                   A 6-month waiting period applies for natural death. Accidental death cover matures after 5 days.
                   A 12-month waiting period applies for suicide. Cashback is payable on the 5th day of the 4th month
                   from activation, or earlier if the 5th is on a weekend or public holiday. Gold Plan weekly earnings
-                  are calculated at 2.5% weekly for 52 weeks where applicable. Renewal must be completed by the
+                  are calculated at 5% weekly for 52 weeks where applicable. Renewal must be completed by the
                   11th month to avoid policy lapse. Early withdrawal is payable at 10% and the remaining amount
                   lapses. No advance requests for cashback or payout will be granted. Activation date means the
                   date the member paid for the policy, not the date the application was submitted. Claims are processed
