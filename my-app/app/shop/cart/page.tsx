@@ -113,6 +113,15 @@ function CartPageInner() {
                 Delivery details
               </h2>
 
+              <div className="bg-[#f3cc20]/5 border border-[#f3cc20]/20 rounded-xl p-4 mb-5 text-xs text-white/75 space-y-1">
+                <p>
+                  <span className="text-[#f3cc20] font-semibold">R99</span> · Nationwide delivery, 5–7 working days.
+                </p>
+                <p>
+                  <span className="text-[#f3cc20] font-semibold">R199</span> · SADC Region, 14–21 working days.
+                </p>
+              </div>
+
               <div className="grid sm:grid-cols-2 gap-4 mb-5">
                 <Field label="Full name" value={name} onChange={setName} />
                 <Field label="Email" type="email" value={email} onChange={setEmail} />

@@ -44,6 +44,16 @@ export default function ShopPage() {
             <p className="text-white/55 text-sm">
               Wear the brand. Carry the mission. Choose your size and pay securely.
             </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1 text-white/75 text-xs">
+                <span className="text-[#f3cc20] font-semibold">R99</span>
+                Nationwide delivery · 5–7 days
+              </span>
+              <span className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1 text-white/75 text-xs">
+                <span className="text-[#f3cc20] font-semibold">R199</span>
+                SADC Region · 14–21 days
+              </span>
+            </div>
           </div>
 
           <button
