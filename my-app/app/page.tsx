@@ -88,7 +88,7 @@ export default async function HomePage({
             </div>
           </div>
 
-          <div className="ani5 mt-16 max-w-md">
+          <div className="ani5 mt-16 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
             <div className="bg-white/[0.06] border border-white/15 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <span className="font-display font-bold text-white">Plus Plan</span>
@@ -105,6 +105,27 @@ export default async function HomePage({
                     {t}
                   </span>
                 ))}
+              </div>
+            </div>
+            <div className="bg-[#f3cc20]/[0.06] border border-[#f3cc20]/25 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-display font-bold text-white">Gold Plan</span>
+                <span className="bg-[#f3cc20]/20 text-[#f3cc20] text-xs font-semibold px-3 py-1 rounded-full border border-[#f3cc20]/30">
+                  7 Tiers
+                </span>
+              </div>
+              <p className="text-white/40 text-xs mb-4">
+                Payout after 6 weeks &middot; cashback every 3 months &middot; refer &amp; earn
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {['Silver', 'Gold', 'Diamond', 'Premier', 'Prestige', 'King'].map((t) => (
+                  <span key={t} className="bg-[#f3cc20]/10 text-[#f3cc20]/70 text-xs px-2.5 py-1 rounded-full">
+                    {t}
+                  </span>
+                ))}
+                <span className="bg-[#f3cc20]/20 text-[#f3cc20] font-semibold text-xs px-2.5 py-1 rounded-full">
+                  Superior
+                </span>
               </div>
             </div>
           </div>
@@ -188,7 +209,7 @@ export default async function HomePage({
               {
                 num: '01',
                 title: 'Choose your plan',
-                body: "Pick the Plus tier that fits your budget. See exactly what's covered before committing.",
+                body: "Pick Plus or Gold, then the tier that fits your budget. See exactly what's covered before committing.",
                 bg: 'bg-[#f4f4f4]',
                 bodyColor: 'text-[#505a63]',
               },
@@ -260,7 +281,7 @@ export default async function HomePage({
                 icon: <Coins size={24} className="text-yellow-600" />,
                 iconBg: 'bg-[#f3cc20]/20',
                 title: 'Cashback rewards',
-                body: 'Real money back from month 4 — paid straight to your nominated account.',
+                body: 'Real money back from month 4. Gold members also earn quarterly payouts.',
               },
               {
                 icon: <ShareNetwork size={24} className="text-[#0682B4]" />,
