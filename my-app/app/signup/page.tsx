@@ -4,9 +4,9 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ArrowLeft, Camera, CheckCircle, Eye, EyeSlash, Microphone, PaperPlaneTilt, UploadSimple } from '@phosphor-icons/react';
-import { Shield, Crown } from '@phosphor-icons/react';
+import { Shield } from '@phosphor-icons/react';
 import { signUpUser } from '@/lib/firebase-service';
-import { PLUS_TIERS, GOLD_TIERS } from '@/lib/constants';
+import { PLUS_TIERS } from '@/lib/constants';
 import type { Dependent, PolicyDocuments, SignUpFormData, UploadedDocument } from '@/lib/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -248,11 +248,13 @@ function SignupContent() {
   const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
-    const plan = searchParams.get('plan') as PlanType | null;
-    if (plan === 'plus' || plan === 'gold') setPlanType(plan);
+    const plan = searchParams.get('plan');
+    if (plan === 'plus' || plan === 'gold') {
+      setPlanType('plus');
+    }
   }, [searchParams]);
 
-  const tiers = planType === 'gold' ? GOLD_TIERS : PLUS_TIERS;
+  const tiers = PLUS_TIERS;
   const progress = (step / 4) * 100;
   const selectedTier = tiers.find((t) => t.name === tier) ?? null;
   const baseActivationFee = selectedTier?.feeAmount ?? 0;
@@ -503,27 +505,16 @@ function SignupContent() {
             Choose your plan
           </h2>
           <p className="text-white/50 text-sm mb-8">
-            Select the plan type, then the tier that fits your budget.
+            Select the Plus Plan tier that fits your budget.
           </p>
 
-          {/* Plan type buttons */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <button
-              onClick={() => { setPlanType('plus'); setTier(null); }}
-              className={`border-2 rounded-2xl p-5 text-left transition-all hover:border-[#0682B4]/40 ${planType === 'plus' ? 'border-[#0682B4] bg-sky-900/20' : 'border-white/15'}`}
-            >
+          {/* Plan card */}
+          <div className="mb-6">
+            <div className="border-2 border-[#0682B4] bg-sky-900/20 rounded-2xl p-5 text-left">
               <Shield className="text-sky-300 mb-3" size={24} />
               <div className="font-display font-bold text-white text-base">Plus Plan</div>
-              <div className="text-white/40 text-xs mt-1">Cashback from month 4</div>
-            </button>
-            <button
-              onClick={() => { setPlanType('gold'); setTier(null); }}
-              className={`border-2 rounded-2xl p-5 text-left transition-all hover:border-[#f3cc20]/40 ${planType === 'gold' ? 'border-[#f3cc20] bg-[#f3cc20]/5' : 'border-white/15'}`}
-            >
-              <Crown className="text-[#f3cc20] mb-3" size={24} />
-              <div className="font-display font-bold text-white text-base">Gold Plan</div>
-              <div className="text-white/40 text-xs mt-1">Payout every 3 months</div>
-            </button>
+              <div className="text-white/40 text-xs mt-1">Cashback from month 4 · refer &amp; earn</div>
+            </div>
           </div>
 
           {/* Tier grid */}

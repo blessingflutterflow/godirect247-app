@@ -1,10 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CalendarBlank, Coins, Crown, Shield, TrendUp } from '@phosphor-icons/react';
-import { GOLD_TIERS, PLUS_TIERS, type TierData } from '@/lib/constants';
-
-type PlanMode = 'gold' | 'plus';
+import { CalendarBlank, Shield, TrendUp } from '@phosphor-icons/react';
+import { PLUS_TIERS, type TierData } from '@/lib/constants';
 
 const PLUS_QUOTATION_TIERS = PLUS_TIERS.filter((tier) => tier.name !== 'Superior Plus');
 
@@ -112,21 +110,6 @@ function previousBusinessDay(date: Date): Date {
   return next;
 }
 
-function nextFridayOnOrAfter(date: Date): Date {
-  const next = new Date(date);
-  const daysUntilFriday = (5 - next.getDay() + 7) % 7;
-  next.setDate(next.getDate() + daysUntilFriday);
-  return next;
-}
-
-function getFirstGoldPayoutDate(activationDate: Date): Date {
-  const isFridayAfterCutoff =
-    activationDate.getDay() === 5 &&
-    (activationDate.getHours() > 23 || (activationDate.getHours() === 23 && activationDate.getMinutes() > 45));
-  const minimumDate = addDays(activationDate, isFridayAfterCutoff ? 14 : 7);
-  return nextFridayOnOrAfter(minimumDate);
-}
-
 function getCashbackSchedule(activationDate: Date, feeAmount: number) {
   return [3, 6, 9, 12].map((monthOffset, index) => {
     const periodEnd = addMonths(activationDate, monthOffset);
@@ -138,17 +121,6 @@ function getCashbackSchedule(activationDate: Date, feeAmount: number) {
       payDate,
     };
   });
-}
-
-function getGoldWeeklySummary(activationDate: Date, feeAmount: number) {
-  const firstPayDate = getFirstGoldPayoutDate(activationDate);
-  const weeklyAmount = feeAmount * 0.05;
-  return {
-    weeklyAmount,
-    firstPayDate,
-    lastPayDate: addDays(firstPayDate, 51 * 7),
-    totalWeekly: weeklyAmount * 52,
-  };
 }
 
 function StatCard({ label, value, tone = 'light' }: { label: string; value: string; tone?: 'light' | 'gold' }) {
@@ -172,27 +144,21 @@ function TierOption({ tier }: { tier: TierData }) {
 
 export function QuotationCalculator() {
   const now = new Date();
-  const [mode, setMode] = useState<PlanMode>('gold');
-  const [goldTierName, setGoldTierName] = useState(GOLD_TIERS[0].name);
   const [plusTierName, setPlusTierName] = useState(PLUS_QUOTATION_TIERS[0].name);
   const [activationDate, setActivationDate] = useState(formatInputDate(now));
   const [activationTime, setActivationTime] = useState(formatInputTime(now));
 
   const selectedTier = useMemo(() => {
-    const tiers = mode === 'gold' ? GOLD_TIERS : PLUS_QUOTATION_TIERS;
-    const tierName = mode === 'gold' ? goldTierName : plusTierName;
-    return tiers.find((tier) => tier.name === tierName) ?? tiers[0];
-  }, [goldTierName, mode, plusTierName]);
+    return PLUS_QUOTATION_TIERS.find((tier) => tier.name === plusTierName) ?? PLUS_QUOTATION_TIERS[0];
+  }, [plusTierName]);
 
   const quote = useMemo(() => {
     const activatedAt = parseActivation(activationDate, activationTime);
     const cashbackSchedule = getCashbackSchedule(activatedAt, selectedTier.feeAmount);
     const cashbackTotal = cashbackSchedule.reduce((total, item) => total + item.amount, 0);
-    const weekly = mode === 'gold' ? getGoldWeeklySummary(activatedAt, selectedTier.feeAmount) : null;
-    const totalEarnings = cashbackTotal + (weekly?.totalWeekly ?? 0);
 
-    return { activatedAt, cashbackSchedule, cashbackTotal, weekly, totalEarnings };
-  }, [activationDate, activationTime, mode, selectedTier]);
+    return { activatedAt, cashbackSchedule, cashbackTotal, totalEarnings: cashbackTotal };
+  }, [activationDate, activationTime, selectedTier]);
 
   return (
     <div className="mt-14 rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-7">
@@ -201,48 +167,24 @@ export function QuotationCalculator() {
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#f3cc20]/25 bg-[#f3cc20]/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#f3cc20]">
             <TrendUp size={14} /> Quotation calculator
           </div>
-          <h3 className="font-display text-2xl font-extrabold text-white">Estimate package earnings</h3>
+          <h3 className="font-display text-2xl font-extrabold text-white">Estimate Plus Plan earnings</h3>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/50">
-            Compare 20% cashback on Plus and Gold packages. Gold quotations also include the 5%
-            weekly earning payable every Friday for 52 weeks.
+            See your 20% cashback schedule for each Plus tier, paid quarterly from month 4.
           </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/[0.06] p-1 text-sm font-bold">
-          <button
-            type="button"
-            onClick={() => setMode('gold')}
-            className={`rounded-full px-4 py-2 transition-all ${
-              mode === 'gold' ? 'bg-[#f3cc20] text-[#191c1f]' : 'text-white/50 hover:text-white'
-            }`}
-          >
-            Gold
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('plus')}
-            className={`rounded-full px-4 py-2 transition-all ${
-              mode === 'plus' ? 'bg-white text-[#191c1f]' : 'text-white/50 hover:text-white'
-            }`}
-          >
-            Plus
-          </button>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
         <label className="block">
           <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-white/40">
-            {mode === 'gold' ? <Crown size={14} /> : <Shield size={14} />} Package
+            <Shield size={14} /> Package
           </span>
           <select
-            value={mode === 'gold' ? goldTierName : plusTierName}
-            onChange={(event) =>
-              mode === 'gold' ? setGoldTierName(event.target.value) : setPlusTierName(event.target.value)
-            }
+            value={plusTierName}
+            onChange={(event) => setPlusTierName(event.target.value)}
             className="w-full rounded-xl border border-white/10 bg-[#191c1f] px-4 py-3 text-sm font-semibold text-white"
           >
-            {(mode === 'gold' ? GOLD_TIERS : PLUS_QUOTATION_TIERS).map((tier) => (
+            {PLUS_QUOTATION_TIERS.map((tier) => (
               <TierOption key={tier.name} tier={tier} />
             ))}
           </select>
@@ -279,30 +221,6 @@ export function QuotationCalculator() {
         <StatCard label="20% cashback total" value={formatCurrency(quote.cashbackTotal)} />
         <StatCard label="Total estimated earnings" value={formatCurrency(quote.totalEarnings)} tone="gold" />
       </div>
-
-      {mode === 'gold' && quote.weekly && (
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <div className="rounded-xl border border-[#f3cc20]/20 bg-[#f3cc20]/[0.04] p-4">
-            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#f3cc20]">
-              <Coins size={14} /> Weekly Gold payout
-            </p>
-            <p className="mt-2 font-display text-2xl font-extrabold text-white">
-              {formatCurrency(quote.weekly.weeklyAmount)}
-            </p>
-            <p className="mt-1 text-xs text-white/40">5% every Friday for 52 weeks.</p>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-white/40">First Friday payout</p>
-            <p className="mt-2 text-sm font-bold text-white">{formatDate(quote.weekly.firstPayDate)}</p>
-            <p className="mt-1 text-xs text-white/40">Based on the Friday 23:45 activation cutoff.</p>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-white/40">52-week Gold total</p>
-            <p className="mt-2 text-sm font-bold text-white">{formatCurrency(quote.weekly.totalWeekly)}</p>
-            <p className="mt-1 text-xs text-white/40">Last scheduled Friday: {formatDate(quote.weekly.lastPayDate)}.</p>
-          </div>
-        </div>
-      )}
 
       <div className="mt-5 rounded-xl border border-white/10 bg-[#191c1f]">
         <div className="grid grid-cols-3 border-b border-white/10 px-4 py-3 text-xs font-bold uppercase tracking-wide text-white/35">
