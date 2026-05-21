@@ -6,19 +6,21 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
   CheckCircle, Warning, SignOut, TrendUp, Gift, UserPlus,
-  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera, Printer,
+  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera, Printer, Plus,
 } from '@phosphor-icons/react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   logoutUser, markNotificationRead, formatDate,
   recordActivationPayment, getReferralStats, isCampaignActive,
   requestWithdrawal, getUserWithdrawal, recordLinkShare, upgradeGenerosityStep,
   getUserTrio, submitIdentitySelfie,
+  getUserAdditionalPolicies, activateAdditionalPolicy,
 } from '@/lib/firebase-service';
 import type { ReferralStats } from '@/lib/firebase-service';
-import type { Withdrawal, Trio } from '@/lib/types';
+import type { Withdrawal, Trio, AdditionalPolicy } from '@/lib/types';
 import type { AppNotification, UserData } from '@/lib/types';
 import type { Timestamp } from 'firebase/firestore';
 import { PLUS_TIERS, GOLD_TIERS, ACTIVATION_AMOUNT, SHARE_MIN_WITHDRAWAL, GENEROSITY_STEPS } from '@/lib/constants';
@@ -173,6 +175,8 @@ function DashboardContent() {
   const [selfieSubmitting, setSelfieSubmitting] = useState(false);
   const [selfieError, setSelfieError] = useState('');
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
+  const [additionalPolicies, setAdditionalPolicies] = useState<AdditionalPolicy[]>([]);
+  const [additionalPolicyNotice, setAdditionalPolicyNotice] = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -199,19 +203,71 @@ function DashboardContent() {
       getReferralStats(user.uid).then(setReferralStats);
       getUserWithdrawal(user.uid).then(setPendingWithdrawal);
       getUserTrio(user.uid).then(setUserTrio);
+      getUserAdditionalPolicies(user.uid).then(setAdditionalPolicies);
     }
   }, [user, refreshUserData]);
 
   // Handle Yoco payment callback
   useEffect(() => {
     const payment = searchParams.get('payment');
-    const checkoutId = searchParams.get('checkoutId');
-    
+    const additionalPolicyId = searchParams.get('additionalPolicyId');
+
     if (payment === 'cancelled') {
-      setActivationError('Payment was cancelled. Please try again.');
+      if (additionalPolicyId) {
+        setAdditionalPolicyNotice('Payment was cancelled. Your additional package was not activated.');
+      } else {
+        setActivationError('Payment was cancelled. Please try again.');
+      }
+      return;
     }
-    // Success is handled by webhook or we can verify here if needed
-  }, [searchParams]);
+
+    if (payment === 'success' && additionalPolicyId && user) {
+      (async () => {
+        try {
+          const policySnap = await getDoc(doc(db, 'additionalPolicies', additionalPolicyId));
+          if (!policySnap.exists()) {
+            setAdditionalPolicyNotice('Could not find your package. Please contact support.');
+            return;
+          }
+          const policy = policySnap.data();
+          if (policy.userId !== user.uid) {
+            setAdditionalPolicyNotice('This package does not belong to your account.');
+            return;
+          }
+          if (policy.status === 'active') {
+            setAdditionalPolicyNotice('Additional package is already active.');
+            getUserAdditionalPolicies(user.uid).then(setAdditionalPolicies);
+            return;
+          }
+          const yocoCheckoutId = policy.yocoCheckoutId as string | null;
+          if (!yocoCheckoutId) {
+            setAdditionalPolicyNotice('Could not confirm payment. Please contact support.');
+            return;
+          }
+          const verifyRes = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ checkoutId: yocoCheckoutId }),
+          });
+          const verifyData = await verifyRes.json();
+          if (!verifyRes.ok || verifyData.status !== 'succeeded') {
+            setAdditionalPolicyNotice('Payment is still being confirmed. This page will update once it completes.');
+            return;
+          }
+          const res = await activateAdditionalPolicy(additionalPolicyId, yocoCheckoutId);
+          if (res.success) {
+            setAdditionalPolicyNotice('Additional package activated successfully.');
+            getUserAdditionalPolicies(user.uid).then(setAdditionalPolicies);
+          } else {
+            setAdditionalPolicyNotice(res.error || 'Could not activate additional package. Please contact support.');
+          }
+        } catch {
+          setAdditionalPolicyNotice('Could not confirm payment. Please contact support.');
+        }
+      })();
+    }
+    // Success for primary policy is handled by webhook or we can verify here if needed
+  }, [searchParams, user]);
 
   async function handleMarkRead(id: string) {
     await markNotificationRead(id);
@@ -818,6 +874,73 @@ function DashboardContent() {
             (5th of your 4th month)
           </p>
         </div>
+
+        {/* Additional Packages */}
+        {u.isActivated && (
+          <div className="ani2 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Plus size={20} className="text-[#f3cc20]" />
+                <span className="font-display font-bold text-white text-base">Additional packages</span>
+              </div>
+              {additionalPolicies.length > 0 && (
+                <span className="bg-[#00a87e]/20 text-[#00a87e] text-xs font-semibold px-2.5 py-1 rounded-full">
+                  {additionalPolicies.filter((p) => p.status === 'active').length} active
+                </span>
+              )}
+            </div>
+
+            {additionalPolicyNotice && (
+              <p className="text-xs mb-3 bg-[#f3cc20]/10 border border-[#f3cc20]/20 text-[#f3cc20] rounded-xl px-3 py-2">
+                {additionalPolicyNotice}
+              </p>
+            )}
+
+            {additionalPolicies.length === 0 ? (
+              <p className="text-white/40 text-xs mb-4">
+                Add another policy for yourself or a family member. It runs alongside your existing cover with its own cashback schedule.
+              </p>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {additionalPolicies.map((p) => (
+                  <div key={p.id} className="border border-white/10 rounded-xl p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white text-sm font-semibold truncate">{p.tier}</p>
+                      <p className="text-white/40 text-xs truncate">
+                        For {p.mainMemberName} · {formatCurrency(p.totalApplicationFee)}
+                      </p>
+                      <p className="text-white/30 text-[10px] mt-0.5">
+                        {p.status === 'active'
+                          ? `Active · ${localDate(p.activationDate)}`
+                          : p.status === 'pending_payment'
+                          ? 'Pending payment'
+                          : 'Cancelled'}
+                      </p>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                        p.status === 'active'
+                          ? 'bg-[#00a87e]/20 text-[#00a87e]'
+                          : p.status === 'pending_payment'
+                          ? 'bg-[#f3cc20]/20 text-[#f3cc20]'
+                          : 'bg-white/10 text-white/40'
+                      }`}
+                    >
+                      {p.status === 'active' ? 'Active' : p.status === 'pending_payment' ? 'Pending' : 'Cancelled'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Link
+              href="/shop/new-package"
+              className="w-full bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3 rounded-xl hover:bg-[#c9a800] transition-all text-sm flex items-center justify-center gap-2"
+            >
+              <Plus size={16} weight="bold" /> Buy another package
+            </Link>
+          </div>
+        )}
 
           {/* Generosity Rewards Roadmap */}
           <div className="bg-gradient-to-br from-[#f3cc20]/20 to-transparent border border-[#f3cc20]/30 rounded-2xl p-5 mb-4 shadow-lg shadow-[#f3cc20]/5">

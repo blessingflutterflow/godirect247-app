@@ -21,7 +21,7 @@ import {
   arrayUnion,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import type { UserData, Payment, AppNotification, Referral, Reward, Withdrawal, SignUpFormData, Trio } from './types';
+import type { UserData, Payment, AppNotification, Referral, Reward, Withdrawal, SignUpFormData, Trio, AdditionalPolicy, AdditionalPolicyFormData } from './types';
 import {
   ACTIVATION_AMOUNT,
   TOTAL_ACTIVATION,
@@ -1088,6 +1088,157 @@ async function creditReferrerCommission(
     referrerData.phone as string,
     `GoDirect247: ${formatCurrency(activationCommissionAmount)} activation commission earned. Payment is scheduled for the next Friday pay run.`
   );
+}
+
+// ── Additional Policies ───────────────────────────────────────────────────────
+
+export async function createAdditionalPolicy(
+  userId: string,
+  data: AdditionalPolicyFormData
+): Promise<{ success: boolean; policyId?: string; error?: string }> {
+  try {
+    const now = serverTimestamp();
+    const ref = await addDoc(collection(db, 'additionalPolicies'), {
+      userId,
+      planType: data.planType,
+      tier: data.tier,
+      mainMemberName: data.mainMemberName,
+      mainMemberIdNumber: data.mainMemberIdNumber,
+      mainMemberPhone: data.mainMemberPhone,
+      beneficiary: data.beneficiary,
+      spouse: data.spouse,
+      dependents: data.dependents,
+      extendedFamily: data.extendedFamily,
+      baseActivationFee: data.baseActivationFee,
+      extendedFamilyFee: data.extendedFamilyFee,
+      totalApplicationFee: data.totalApplicationFee,
+      status: 'pending_payment',
+      yocoCheckoutId: null,
+      activationDate: null,
+      funeralCoverExpiry: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { success: true, policyId: ref.id };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Could not create policy' };
+  }
+}
+
+export async function getUserAdditionalPolicies(userId: string): Promise<AdditionalPolicy[]> {
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'additionalPolicies'), where('userId', '==', userId), orderBy('createdAt', 'desc'))
+    );
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AdditionalPolicy));
+  } catch {
+    return [];
+  }
+}
+
+export async function activateAdditionalPolicy(
+  policyId: string,
+  yocoCheckoutId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const policyRef = doc(db, 'additionalPolicies', policyId);
+    const policySnap = await getDoc(policyRef);
+    if (!policySnap.exists()) return { success: false, error: 'Policy not found' };
+    const policy = policySnap.data() as AdditionalPolicy;
+    if (policy.status === 'active') return { success: true };
+
+    const now = serverTimestamp();
+    const coverExpiry = new Date();
+    coverExpiry.setMonth(coverExpiry.getMonth() + 12);
+
+    await updateDoc(policyRef, {
+      status: 'active',
+      yocoCheckoutId,
+      activationDate: now,
+      funeralCoverExpiry: Timestamp.fromDate(coverExpiry),
+      updatedAt: now,
+    });
+
+    await addDoc(collection(db, 'payments'), {
+      userId: policy.userId,
+      amount: policy.totalApplicationFee,
+      type: 'self',
+      status: 'paid',
+      yocoChargeId: yocoCheckoutId,
+      additionalPolicyId: policyId,
+      createdAt: now,
+      paidAt: now,
+    });
+
+    await createNotification(
+      policy.userId,
+      'paid',
+      `Additional ${policy.tier} policy for ${policy.mainMemberName} is now active.`
+    );
+
+    const userSnap = await getDoc(doc(db, 'users', policy.userId));
+    if (userSnap.exists()) {
+      const userData = userSnap.data() as UserData;
+      if (userData.referredBy) {
+        await creditAdditionalPolicyCommission(userData.referredBy, policy.userId, policy.totalApplicationFee, policyId);
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Activation failed' };
+  }
+}
+
+async function creditAdditionalPolicyCommission(
+  referrerId: string,
+  buyerId: string,
+  amount: number,
+  policyId: string
+): Promise<void> {
+  const commissionAmount = Math.round(amount * ACTIVATION_COMMISSION_RATE * 100) / 100;
+  const now = serverTimestamp();
+
+  const buyerSnap = await getDoc(doc(db, 'users', buyerId));
+  const buyerName = buyerSnap.exists() ? (buyerSnap.data().fullName as string) || 'Member' : 'Member';
+
+  await addDoc(collection(db, 'referrals'), {
+    referrerId,
+    referredUserId: buyerId,
+    referredUserName: buyerName,
+    status: 'paid',
+    commissionAmount,
+    signupCommissionAmount: 0,
+    activationCommissionAmount: commissionAmount,
+    potentialActivationCommission: 0,
+    handshakeCommissionAmount: 0,
+    handshakeMonth: null,
+    handshakePaidOnSignup: false,
+    additionalPolicyId: policyId,
+    duePaymentDate: Timestamp.fromDate(getNextReferralPayDate()),
+    paidAt: now,
+    createdAt: now,
+  });
+
+  const referrerSnap = await getDoc(doc(db, 'users', referrerId));
+  if (!referrerSnap.exists()) return;
+  const referrerData = referrerSnap.data() as UserData;
+  await updateDoc(doc(db, 'users', referrerId), {
+    totalEarnings: (referrerData.totalEarnings || 0) + commissionAmount,
+    updatedAt: now,
+  });
+
+  await createNotification(
+    referrerId,
+    'paid',
+    `${buyerName} bought an additional ${formatCurrency(amount)} package. Commission: ${formatCurrency(commissionAmount)}.`
+  );
+  if (referrerData.phone) {
+    sendSMSNotification(
+      referrerData.phone,
+      `GoDirect247: ${buyerName} bought an additional package. Commission ${formatCurrency(commissionAmount)} scheduled for the next Friday pay run.`
+    );
+  }
 }
 
 async function checkAndAwardPreLaunchReward(userId: string): Promise<void> {

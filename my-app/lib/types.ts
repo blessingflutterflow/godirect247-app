@@ -198,3 +198,41 @@ export interface SignUpFormData {
   totalApplicationFee: number;
   identitySelfieDataUrl?: string | null;
 }
+
+export interface AdditionalPolicy {
+  id?: string;
+  userId: string;
+  planType: 'plus' | 'gold';
+  tier: string;
+  mainMemberName: string;
+  mainMemberIdNumber: string;
+  mainMemberPhone: string;
+  beneficiary: Beneficiary | null;
+  spouse: Spouse | null;
+  dependents: Dependent[];
+  extendedFamily: ExtendedFamily | null;
+  baseActivationFee: number;
+  extendedFamilyFee: number;
+  totalApplicationFee: number;
+  status: 'pending_payment' | 'active' | 'cancelled';
+  yocoCheckoutId?: string | null;
+  activationDate: Timestamp | null;
+  funeralCoverExpiry: Timestamp | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface AdditionalPolicyFormData {
+  planType: 'plus' | 'gold';
+  tier: string;
+  mainMemberName: string;
+  mainMemberIdNumber: string;
+  mainMemberPhone: string;
+  beneficiary: Beneficiary | null;
+  spouse: Spouse | null;
+  dependents: Dependent[];
+  extendedFamily: ExtendedFamily | null;
+  baseActivationFee: number;
+  extendedFamilyFee: number;
+  totalApplicationFee: number;
+}
