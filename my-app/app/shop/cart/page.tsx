@@ -3,12 +3,19 @@
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Minus, Plus, Trash, ShoppingBag } from '@phosphor-icons/react';
+import { ArrowLeft, Minus, Plus, Trash, ShoppingBag, CreditCard, Bank } from '@phosphor-icons/react';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { useCart } from '@/components/CartContext';
 import { createOrder, attachCheckoutToOrder } from '@/lib/pearl-service';
-import { DELIVERY_OPTIONS, type DeliveryRegion } from '@/lib/pearl-types';
+import {
+  DELIVERY_OPTIONS,
+  EFT_DETAILS,
+  YOCO_HANDLING_FEE_RATE,
+  calcYocoFee,
+  type DeliveryRegion,
+  type PaymentMethod,
+} from '@/lib/pearl-types';
 
 function CartPageInner() {
   const { items, total, remove, setQty } = useCart();
@@ -23,11 +30,14 @@ function CartPageInner() {
   const [city, setCity] = useState('');
   const [postal, setPostal] = useState('');
   const [deliveryRegion, setDeliveryRegion] = useState<DeliveryRegion>('nationwide');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('yoco');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const deliveryFee = DELIVERY_OPTIONS[deliveryRegion].fee;
-  const grandTotal = total + deliveryFee;
+  const preFeeTotal = total + deliveryFee;
+  const handlingFee = paymentMethod === 'yoco' ? calcYocoFee(preFeeTotal) : 0;
+  const grandTotal = preFeeTotal + handlingFee;
 
   async function handleCheckout(e: React.FormEvent) {
     e.preventDefault();
@@ -51,18 +61,28 @@ function CartPageInner() {
         shippingPostalCode: postal,
         items,
         deliveryRegion,
+        paymentMethod,
       });
       if (!order.success || !order.id) {
         setError(order.error || 'Could not place order.');
         setLoading(false);
         return;
       }
+
+      if (paymentMethod === 'eft') {
+        try {
+          sessionStorage.setItem('lastOrderId', order.id);
+        } catch {}
+        router.push(`/invoice/order/${order.id}`);
+        return;
+      }
+
       const payable = order.totalAmount ?? grandTotal;
       const res = await fetch('/api/shop/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amountInCents: payable * 100,
+          amountInCents: Math.round(payable * 100),
           orderId: order.id,
           email,
           fullName: name,
@@ -164,6 +184,83 @@ function CartPageInner() {
                   <Field label="City" value={city} onChange={setCity} />
                 </div>
               </div>
+
+              <p className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-2">
+                Payment method
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('yoco')}
+                  className={`text-left rounded-xl border p-4 transition-all ${
+                    paymentMethod === 'yoco'
+                      ? 'bg-[#f3cc20]/10 border-[#f3cc20]'
+                      : 'bg-white/5 border-white/15 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <CreditCard
+                      size={18}
+                      weight="fill"
+                      className={paymentMethod === 'yoco' ? 'text-[#f3cc20]' : 'text-white/60'}
+                    />
+                    <span className="text-white font-semibold text-sm">Card · Yoco</span>
+                  </div>
+                  <p className="text-white/50 text-xs">
+                    Instant, secure card payment. <span className="text-[#f3cc20]">2.9% handling fee</span>.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('eft')}
+                  className={`text-left rounded-xl border p-4 transition-all ${
+                    paymentMethod === 'eft'
+                      ? 'bg-[#f3cc20]/10 border-[#f3cc20]'
+                      : 'bg-white/5 border-white/15 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Bank
+                      size={18}
+                      weight="fill"
+                      className={paymentMethod === 'eft' ? 'text-[#f3cc20]' : 'text-white/60'}
+                    />
+                    <span className="text-white font-semibold text-sm">EFT · Bank Zero</span>
+                  </div>
+                  <p className="text-white/50 text-xs">
+                    Manual bank transfer. <span className="text-[#00a87e]">R0.00 fee</span>.
+                  </p>
+                </button>
+              </div>
+
+              {paymentMethod === 'eft' && (
+                <div className="bg-[#191c1f] border border-white/10 rounded-xl p-4 mb-5 text-xs">
+                  <p className="text-[#f3cc20] font-semibold mb-2">
+                    EFT banking details
+                  </p>
+                  <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 text-white/70">
+                    <span className="text-white/45">Bank</span>
+                    <span className="text-white font-medium">{EFT_DETAILS.bankName}</span>
+                    <span className="text-white/45">Account holder</span>
+                    <span className="text-white font-medium">{EFT_DETAILS.accountHolder}</span>
+                    <span className="text-white/45">Account number</span>
+                    <span className="text-white font-mono">{EFT_DETAILS.accountNumber}</span>
+                    <span className="text-white/45">Branch code</span>
+                    <span className="text-white font-mono">{EFT_DETAILS.branchCode}</span>
+                  </div>
+                  <p className="text-white/40 text-[11px] mt-3">
+                    After placing your order you&apos;ll get a downloadable invoice with
+                    a unique reference. Use that as the EFT payment reference.
+                  </p>
+                </div>
+              )}
+
+              {paymentMethod === 'yoco' && (
+                <p className="text-white/40 text-[11px] mb-5">
+                  Yoco charges a {(YOCO_HANDLING_FEE_RATE * 100).toFixed(1)}% handling
+                  fee, added to your total below.
+                </p>
+              )}
 
               {error && (
                 <p className="text-[#e23b4a] text-xs mb-4 bg-[#e23b4a]/10 border border-[#e23b4a]/20 rounded-xl px-3 py-2">

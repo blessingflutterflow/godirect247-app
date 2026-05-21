@@ -7,6 +7,7 @@ import { ArrowRight, ArrowLeft, Camera, CheckCircle, Eye, EyeSlash, Microphone, 
 import { Shield, Crown } from '@phosphor-icons/react';
 import { signUpUser } from '@/lib/firebase-service';
 import { PLUS_TIERS, GOLD_TIERS } from '@/lib/constants';
+import { assessSelfieQuality } from '@/lib/selfie-quality';
 import type { Dependent, PolicyDocuments, SignUpFormData, UploadedDocument } from '@/lib/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -404,7 +405,14 @@ function SignupContent() {
     setSelfieProcessing(true);
     setSelfieError('');
     try {
-      setIdentitySelfieDataUrl(await resizeSelfie(file));
+      const dataUrl = await resizeSelfie(file);
+      const quality = await assessSelfieQuality(dataUrl);
+      if (!quality.ok) {
+        setSelfieError(quality.reason || 'Selfie was not clear enough. Please retake.');
+        setIdentitySelfieDataUrl(null);
+      } else {
+        setIdentitySelfieDataUrl(dataUrl);
+      }
     } catch (err) {
       setSelfieError(err instanceof Error ? err.message : 'Could not prepare selfie.');
     }
@@ -874,7 +882,7 @@ function SignupContent() {
             <div className="mb-3">
               <p className="text-white/60 text-xs font-semibold uppercase tracking-wide">Selfie verification</p>
               <p className="text-white/35 text-xs mt-1">
-                Take a clear selfie now so GoDirect247 can review your identity before activation.
+                Take a clear selfie — approval is automatic as soon as the photo passes the clarity check.
               </p>
             </div>
             <div className="rounded-2xl border border-sky-400/20 bg-sky-400/[0.05] p-4">
@@ -919,7 +927,7 @@ function SignupContent() {
                 </button>
               </div>
               <p className="mt-2 text-[10px] leading-relaxed text-white/35">
-                Selfie upload is optional during signup, but taking it now helps reduce delays before payment and activation.
+                Selfie is optional during signup but recommended — clear photos are auto-approved so you can move straight to activation. Your ID document (required below) is kept on file for identification.
               </p>
             </div>
           </div>
@@ -929,7 +937,7 @@ function SignupContent() {
             <div className="mb-3">
               <p className="text-white/60 text-xs font-semibold uppercase tracking-wide">Documents</p>
               <p className="text-white/35 text-xs mt-1">
-                Policy holder ID is required. Spouse, dependent and extended-family documents can be uploaded now or supplied later.
+                Policy holder ID document is mandatory for identification — your application cannot be submitted without it. Spouse, dependent and extended-family documents can be uploaded now or supplied later.
               </p>
             </div>
             <div className="space-y-3">

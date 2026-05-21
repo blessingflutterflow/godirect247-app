@@ -24,6 +24,7 @@ import type { Withdrawal, Trio, AdditionalPolicy } from '@/lib/types';
 import type { AppNotification, UserData } from '@/lib/types';
 import type { Timestamp } from 'firebase/firestore';
 import { PLUS_TIERS, GOLD_TIERS, ACTIVATION_AMOUNT, SHARE_MIN_WITHDRAWAL, GENEROSITY_STEPS } from '@/lib/constants';
+import { assessSelfieQuality } from '@/lib/selfie-quality';
 
 
 function toDate(value: Timestamp | null | undefined): Date | null {
@@ -379,6 +380,13 @@ function DashboardContent() {
     setSelfieError('');
     try {
       const selfieDataUrl = await resizeSelfie(file);
+      const quality = await assessSelfieQuality(selfieDataUrl);
+      if (!quality.ok) {
+        setSelfieError(quality.reason || 'Selfie was not clear enough. Please retake.');
+        setSelfieSubmitting(false);
+        if (selfieInputRef.current) selfieInputRef.current.value = '';
+        return;
+      }
       const result = await submitIdentitySelfie(user.uid, selfieDataUrl);
       if (!result.success) {
         setSelfieError(result.error || 'Could not submit selfie. Please try again.');
@@ -576,18 +584,18 @@ function DashboardContent() {
               <div>
                 <p className="font-display font-bold text-white text-base">Selfie verification required</p>
                 <p className="text-white/50 text-xs mt-0.5">
-                  Take a clear selfie to protect your profile before activating your cover.
+                  Take a clear selfie — approval is automatic as soon as the photo passes the clarity check. Your ID document (already uploaded at signup) is kept on file for identification.
                 </p>
               </div>
             </div>
             {identitySubmitted && (
               <p className="text-[#f3cc20] text-xs mb-3 bg-[#f3cc20]/10 border border-[#f3cc20]/20 rounded-xl px-3 py-2">
-                Selfie submitted. GoDirect247 will review it before activation is unlocked.
+                Selfie received. Refresh the page if the status hasn't updated.
               </p>
             )}
             {identityRejected && (
               <p className="text-[#e23b4a] text-xs mb-3 bg-[#e23b4a]/10 border border-[#e23b4a]/20 rounded-xl px-3 py-2">
-                Your selfie was not approved. Please submit a new clear selfie.
+                Your selfie was not clear enough. Please retake in good light with your face fully visible.
               </p>
             )}
             {selfieError && (
@@ -660,7 +668,7 @@ function DashboardContent() {
               )}
             </button>
             <p className="text-white/30 text-xs text-center mt-2">
-              {identityApproved ? 'Secured by Yoco · Card payments accepted' : 'Selfie verification approval required before payment'}
+              {identityApproved ? 'Secured by Yoco · Card payments accepted' : 'Take a clear selfie to unlock activation (approval is automatic).'}
             </p>
           </div>
         )}

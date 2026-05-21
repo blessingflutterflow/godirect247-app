@@ -17,7 +17,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { PEARL_PLANS, DELIVERY_OPTIONS, type PearlPlan, type PearlSubscription, type Product, type Order, type CartItem, type MerchSize, type DeliveryRegion } from './pearl-types';
+import { PEARL_PLANS, DELIVERY_OPTIONS, calcYocoFee, type PaymentMethod, type PearlPlan, type PearlSubscription, type Product, type Order, type CartItem, type MerchSize, type DeliveryRegion } from './pearl-types';
 
 const SUBS = 'pearlSubscriptions';
 const PRODUCTS = 'products';
@@ -36,12 +36,15 @@ export async function signUpPearlUser(
   password: string,
   fullName: string,
   phone: string,
-  plan: PearlPlan
-): Promise<{ success: boolean; uid?: string; subscriptionId?: string; error?: string }> {
+  plan: PearlPlan,
+  paymentMethod: PaymentMethod = 'yoco'
+): Promise<{ success: boolean; uid?: string; subscriptionId?: string; totalAmount?: number; handlingFee?: number; error?: string }> {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const uid = cred.user.uid;
     const planConfig = PEARL_PLANS[plan];
+    const handlingFee = paymentMethod === 'yoco' ? calcYocoFee(planConfig.priceAmount) : 0;
+    const totalAmount = planConfig.priceAmount + handlingFee;
 
     const now = serverTimestamp();
     const subRef = await addDoc(collection(db, SUBS), {
@@ -51,7 +54,10 @@ export async function signUpPearlUser(
       phone,
       plan,
       priceAmount: planConfig.priceAmount,
-      status: 'pending',
+      paymentMethod,
+      handlingFee,
+      totalAmount,
+      status: paymentMethod === 'eft' ? 'awaiting_eft' : 'pending',
       startedAt: null,
       expiresAt: null,
       nextBillingAt: null,
@@ -73,7 +79,7 @@ export async function signUpPearlUser(
       updatedAt: now,
     }, { merge: true });
 
-    return { success: true, uid, subscriptionId: subRef.id };
+    return { success: true, uid, subscriptionId: subRef.id, totalAmount, handlingFee };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Sign-up failed';
     return { success: false, error: msg };
@@ -216,27 +222,31 @@ export async function createOrder(payload: {
   shippingPostalCode: string;
   items: CartItem[];
   deliveryRegion: DeliveryRegion;
-}): Promise<{ success: boolean; id?: string; totalAmount?: number; error?: string }> {
+  paymentMethod: PaymentMethod;
+}): Promise<{ success: boolean; id?: string; totalAmount?: number; handlingFee?: number; error?: string }> {
   try {
     const subtotalAmount = payload.items.reduce(
       (sum, it) => sum + it.priceAmount * it.qty,
       0,
     );
     const deliveryFee = DELIVERY_OPTIONS[payload.deliveryRegion].fee;
-    const totalAmount = subtotalAmount + deliveryFee;
+    const preFeeTotal = subtotalAmount + deliveryFee;
+    const handlingFee = payload.paymentMethod === 'yoco' ? calcYocoFee(preFeeTotal) : 0;
+    const totalAmount = preFeeTotal + handlingFee;
     const now = serverTimestamp();
     const ref = await addDoc(collection(db, ORDERS), {
       ...payload,
       subtotalAmount,
       deliveryFee,
+      handlingFee,
       totalAmount,
-      status: 'pending',
+      status: payload.paymentMethod === 'eft' ? 'awaiting_eft' : 'pending',
       checkoutId: null,
       paidAt: null,
       createdAt: now,
       updatedAt: now,
     });
-    return { success: true, id: ref.id, totalAmount };
+    return { success: true, id: ref.id, totalAmount, handlingFee };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Failed to create order' };
   }

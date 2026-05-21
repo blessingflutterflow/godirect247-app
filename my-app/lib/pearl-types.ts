@@ -1,5 +1,29 @@
 import type { Timestamp } from 'firebase/firestore';
 
+export type PaymentMethod = 'yoco' | 'eft';
+
+export const YOCO_HANDLING_FEE_RATE = 0.029; // 2.9% Yoco handling fee
+
+export function calcYocoFee(amount: number): number {
+  return Math.round(amount * YOCO_HANDLING_FEE_RATE * 100) / 100;
+}
+
+export const EFT_DETAILS = {
+  bankName: 'Bank Zero',
+  accountHolder: 'GoDirect247',
+  accountNumber: '80205428520',
+  branchCode: '888000',
+} as const;
+
+export const COMPANY_DETAILS = {
+  name: 'GoDirect247',
+  group: 'Zarkudu Group',
+  fspLicence: 'FSP Licence JR 50841',
+  website: 'godirect247.com',
+  supportPhone: '078 063 8753',
+  supportEmail: 'support@godirect247.com',
+} as const;
+
 export type PearlPlan = 'once-off' | 'monthly';
 
 export const PEARL_PLANS = {
@@ -43,7 +67,10 @@ export interface PearlSubscription {
   phone: string;
   plan: PearlPlan;
   priceAmount: number;
-  status: 'pending' | 'active' | 'expired' | 'cancelled';
+  paymentMethod: PaymentMethod;
+  handlingFee: number;
+  totalAmount: number;
+  status: 'pending' | 'awaiting_eft' | 'active' | 'expired' | 'cancelled';
   startedAt: Timestamp | null;
   expiresAt: Timestamp | null;
   nextBillingAt: Timestamp | null;
@@ -109,8 +136,10 @@ export interface Order {
   subtotalAmount: number;
   deliveryRegion: DeliveryRegion;
   deliveryFee: number;
+  paymentMethod: PaymentMethod;
+  handlingFee: number;
   totalAmount: number;
-  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'awaiting_eft' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
   checkoutId: string | null;
   paidAt: Timestamp | null;
   createdAt: Timestamp;

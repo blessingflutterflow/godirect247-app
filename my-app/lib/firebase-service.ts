@@ -192,11 +192,11 @@ export async function signUpUser(
       funeralCoverActive: false,
       funeralCoverExpiry: null,
       applicationStatus: 'submitted',
-      identityVerificationStatus: userData.identitySelfieDataUrl ? 'submitted' : 'not_started',
+      identityVerificationStatus: userData.identitySelfieDataUrl ? 'approved' : 'not_started',
       identitySelfieDataUrl: userData.identitySelfieDataUrl || null,
       identitySubmittedAt: userData.identitySelfieDataUrl ? now : null,
-      identityReviewedAt: null,
-      identityReviewedBy: null,
+      identityReviewedAt: userData.identitySelfieDataUrl ? now : null,
+      identityReviewedBy: userData.identitySelfieDataUrl ? 'auto-clarity' : null,
       identityRejectionReason: null,
       createdAt: now,
       updatedAt: now,
@@ -206,7 +206,7 @@ export async function signUpUser(
       await createNotification(
         uid,
         'identity',
-        'Your selfie was submitted with your application and is waiting for GoDirect247 review.'
+        'Your selfie passed the clarity check. You can now activate your cover.'
       );
     } else {
       await createNotification(
@@ -463,13 +463,19 @@ export async function submitIdentitySelfie(
 
     await updateDoc(doc(db, 'users', uid), {
       identitySelfieDataUrl: selfieDataUrl,
-      identityVerificationStatus: 'submitted',
+      identityVerificationStatus: 'approved',
       identitySubmittedAt: serverTimestamp(),
-      identityReviewedAt: null,
-      identityReviewedBy: null,
+      identityReviewedAt: serverTimestamp(),
+      identityReviewedBy: 'auto-clarity',
       identityRejectionReason: null,
       updatedAt: serverTimestamp(),
     });
+
+    await createNotification(
+      uid,
+      'identity',
+      'Your selfie passed the clarity check. You can now activate your cover.'
+    );
 
     return { success: true };
   } catch (err) {
