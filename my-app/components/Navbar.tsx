@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
-import { List, X } from '@phosphor-icons/react';
+import { List, X, ShoppingCart } from '@phosphor-icons/react';
+import { useCart } from './CartContext';
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const { setOpen: setCartOpen, count } = useCart();
 
   return (
     <nav className="fixed top-0 inset-x-0 z-50 bg-[#191c1f]/95 backdrop-blur border-b border-white/10">
@@ -44,6 +46,18 @@ export function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
+          <button
+            onClick={() => setCartOpen(true)}
+            className="relative text-white/70 hover:text-white p-2 rounded-full transition-colors"
+            aria-label="Open cart"
+          >
+            <ShoppingCart size={22} weight="fill" />
+            {count > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-[#f3cc20] text-[#191c1f] text-[10px] font-extrabold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                {count}
+              </span>
+            )}
+          </button>
           <Link
             href="/dashboard"
             className="text-white/70 hover:text-white text-sm font-medium px-4 py-2"
@@ -58,13 +72,27 @@ export function Navbar() {
           </Link>
         </div>
 
-        <button
-          onClick={() => setOpen(!open)}
-          className="md:hidden text-white p-1"
-          aria-label="Toggle menu"
-        >
-          {open ? <X size={24} weight="bold" /> : <List size={24} weight="bold" />}
-        </button>
+        <div className="md:hidden flex items-center gap-1">
+          <button
+            onClick={() => setCartOpen(true)}
+            className="relative text-white/80 hover:text-white p-2"
+            aria-label="Open cart"
+          >
+            <ShoppingCart size={22} weight="fill" />
+            {count > 0 && (
+              <span className="absolute top-0 right-0 bg-[#f3cc20] text-[#191c1f] text-[10px] font-extrabold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                {count}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setOpen(!open)}
+            className="text-white p-1"
+            aria-label="Toggle menu"
+          >
+            {open ? <X size={24} weight="bold" /> : <List size={24} weight="bold" />}
+          </button>
+        </div>
       </div>
 
       {open && (
