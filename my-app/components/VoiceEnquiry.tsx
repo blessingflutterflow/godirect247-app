@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Microphone, PaperPlaneTilt, WhatsappLogo } from '@phosphor-icons/react';
+import { Microphone, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react';
 
 interface SpeechRecognitionResultItem {
   transcript: string;
@@ -40,8 +40,11 @@ function getSpeechRecognition(): SpeechRecognitionConstructor | null {
 
 export function VoiceEnquiry() {
   const [message, setMessage] = useState('');
+  const [contact, setContact] = useState('');
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
   function startVoice() {
     setError('');
@@ -68,10 +71,46 @@ export function VoiceEnquiry() {
     recognition.start();
   }
 
-  const enquiryText =
-    message.trim() ||
-    'Hi PEARL, GoDirect247 AI Agent, I would like to enquire before signing up.';
-  const whatsappHref = `https://wa.me/27780638753?text=${encodeURIComponent(enquiryText)}`;
+  const enquiryText = message.trim();
+
+  async function sendEnquiry() {
+    setError('');
+    if (!enquiryText) {
+      setError('Please type or speak your question first.');
+      return;
+    }
+    setSending(true);
+    try {
+      const escapedMessage = enquiryText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const escapedContact = contact.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: 'support@godirect247.com',
+          subject: 'New PEARL enquiry from godirect247.com',
+          html: `
+            <h2 style="margin:0 0 12px;font-size:18px;color:#191c1f;">New PEARL enquiry</h2>
+            <p style="margin:0 0 8px;font-size:14px;color:#505a63;">A visitor sent an enquiry through PEARL on the GoDirect247 website.</p>
+            <div style="margin:14px 0;padding:14px 16px;background:#f7f8fa;border-radius:12px;border:1px solid #e4e8eb;font-size:15px;color:#191c1f;white-space:pre-wrap;">${escapedMessage}</div>
+            ${escapedContact ? `<p style="margin:0;font-size:14px;color:#191c1f;"><strong>Reply to:</strong> ${escapedContact}</p>` : '<p style="margin:0;font-size:14px;color:#8d969e;">No contact details provided.</p>'}
+          `,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Could not send your enquiry. Please try again.');
+        return;
+      }
+      setSent(true);
+      setMessage('');
+      setContact('');
+    } catch {
+      setError('Could not send your enquiry. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <section className="bg-[#191c1f] px-5 py-14 border-y border-white/10">
@@ -93,12 +132,27 @@ export function VoiceEnquiry() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
             <textarea
               value={message}
-              onChange={(event) => setMessage(event.target.value)}
+              onChange={(event) => {
+                setMessage(event.target.value);
+                if (sent) setSent(false);
+              }}
               placeholder="Type your question here, or tap the mic and speak..."
               rows={4}
               className="w-full resize-none rounded-xl border border-white/10 bg-[#191c1f] px-4 py-3 text-sm text-white placeholder-white/30"
             />
+            <input
+              type="text"
+              value={contact}
+              onChange={(event) => setContact(event.target.value)}
+              placeholder="Your email or phone (optional, so we can reply)"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-[#191c1f] px-4 py-3 text-sm text-white placeholder-white/30"
+            />
             {error && <p className="mt-2 text-xs text-[#e23b4a]">{error}</p>}
+            {sent && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-[#f3cc20]">
+                <CheckCircle size={14} weight="fill" /> Thanks — PEARL has sent your enquiry to the GoDirect247 team.
+              </p>
+            )}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -112,15 +166,15 @@ export function VoiceEnquiry() {
                 <Microphone size={16} weight={listening ? 'fill' : 'regular'} />
                 {listening ? 'Listening...' : 'Speak'}
               </button>
-              <a
-                href={whatsappHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-bold text-white transition-all hover:bg-[#128C7E]"
+              <button
+                type="button"
+                onClick={sendEnquiry}
+                disabled={sending}
+                className="flex items-center justify-center gap-2 rounded-xl bg-[#f3cc20] px-4 py-3 text-sm font-bold text-[#191c1f] transition-all hover:bg-[#e0bb13] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {message.trim() ? <PaperPlaneTilt size={16} /> : <WhatsappLogo size={16} weight="fill" />}
-                Send enquiry
-              </a>
+                <PaperPlaneTilt size={16} weight="fill" />
+                {sending ? 'Sending...' : 'Send to PEARL'}
+              </button>
             </div>
           </div>
         </div>

@@ -10,7 +10,6 @@ import {
   ShareNetwork,
   Heartbeat,
   Gift,
-  WhatsappLogo,
 } from '@phosphor-icons/react/dist/ssr';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -381,16 +380,6 @@ export default async function HomePage({
       </section>
 
       <Footer />
-
-      <a
-        href="https://wa.me/27780638753"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all hover:scale-110"
-        aria-label="Chat on WhatsApp"
-      >
-        <WhatsappLogo size={28} weight="fill" />
-      </a>
     </>
   );
 }
