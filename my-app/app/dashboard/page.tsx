@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
   CheckCircle, Warning, SignOut, TrendUp, Gift, UserPlus,
-  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera, Printer, Plus,
+  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera, Printer, Plus, Bank,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -14,7 +14,7 @@ import { collection, query, where, orderBy, limit, onSnapshot, doc, getDoc } fro
 import { db } from '@/lib/firebase';
 import {
   logoutUser, markNotificationRead, formatDate,
-  recordActivationPayment, getReferralStats, isCampaignActive,
+  recordActivationPayment, getReferralStats, isCampaignActive, createEftActivationInvoice,
   requestWithdrawal, getUserWithdrawal, recordLinkShare, upgradeGenerosityStep,
   getUserTrio, submitIdentitySelfie,
   getUserAdditionalPolicies, activateAdditionalPolicy,
@@ -164,6 +164,7 @@ function DashboardContent() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
   const [activationError, setActivationError] = useState('');
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [copied, setCopied] = useState(false);
@@ -322,6 +323,26 @@ function DashboardContent() {
       setActivationError('Something went wrong. Please contact support.');
       setActivating(false);
     }
+  }
+
+  async function handleGenerateEftInvoice() {
+    if (!user || !userData) return;
+    setActivationError('');
+    if (userData.identityVerificationStatus !== 'approved') {
+      setActivationError('Please complete selfie verification before requesting an invoice.');
+      return;
+    }
+    setGeneratingInvoice(true);
+    const u = userData as UserData;
+    const fee = getActivationFee(u.tier, u.planType);
+    const result = await createEftActivationInvoice(user.uid, fee);
+    if (!result.success || !result.invoiceId) {
+      setActivationError(result.error || 'Could not generate invoice. Please try again.');
+      setGeneratingInvoice(false);
+      return;
+    }
+    window.open(`/invoice/activation/${result.invoiceId}`, '_blank');
+    setGeneratingInvoice(false);
   }
 
   async function handleWithdraw() {
@@ -660,15 +681,26 @@ function DashboardContent() {
             )}
             <button
               onClick={handleActivate}
-              disabled={activating || !identityApproved}
+              disabled={activating || generatingInvoice || !identityApproved}
               className="w-full bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3.5 rounded-xl hover:bg-[#c9a800] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {activating ? 'Processing…' : (
-                <>Pay Now (R{fee.toLocaleString()}) <ArrowRight size={16} /></>
+                <>Pay by Card (R{fee.toLocaleString()}) <ArrowRight size={16} /></>
+              )}
+            </button>
+            <button
+              onClick={handleGenerateEftInvoice}
+              disabled={activating || generatingInvoice || !identityApproved}
+              className="w-full mt-2 bg-white/10 border border-white/20 text-white font-display font-bold py-3 rounded-xl hover:bg-white/15 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {generatingInvoice ? 'Generating invoice…' : (
+                <><Bank size={16} weight="bold" /> Pay by EFT — Get Invoice</>
               )}
             </button>
             <p className="text-white/30 text-xs text-center mt-2">
-              {identityApproved ? 'Secured by Yoco · Card payments accepted' : 'Take a clear selfie to unlock activation (approval is automatic).'}
+              {identityApproved
+                ? 'Card via Yoco, or EFT to Bank Zero. Cover activates within 1 working day of EFT clearing.'
+                : 'Take a clear selfie to unlock activation (approval is automatic).'}
             </p>
           </div>
         )}

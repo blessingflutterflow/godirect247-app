@@ -510,6 +510,46 @@ export async function updateIdentityVerificationStatus(
   }
 }
 
+export async function createEftActivationInvoice(
+  uid: string,
+  amount: number
+): Promise<{ success: boolean; invoiceId?: string; error?: string }> {
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (!userSnap.exists()) return { success: false, error: 'User not found' };
+    const user = userSnap.data() as UserData;
+    if (user.isActivated) return { success: false, error: 'Cover is already active.' };
+    if (user.identityVerificationStatus !== 'approved') {
+      return { success: false, error: 'Please complete selfie verification before requesting an invoice.' };
+    }
+
+    const now = serverTimestamp();
+    const ref = await addDoc(collection(db, 'eftActivationInvoices'), {
+      userId: uid,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone || '',
+      tier: user.tier,
+      planType: user.planType,
+      amount,
+      status: 'awaiting_eft',
+      createdAt: now,
+      updatedAt: now,
+      paidAt: null,
+    });
+
+    await createNotification(
+      uid,
+      'paid',
+      `EFT invoice for R${amount.toLocaleString()} has been generated. Reference: GD-${ref.id.slice(0, 8).toUpperCase()}. Email proof of payment to support@godirect247.com.`
+    );
+
+    return { success: true, invoiceId: ref.id };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Could not create EFT invoice.' };
+  }
+}
+
 export async function recordActivationPayment(
   uid: string,
   amount: number,
