@@ -421,6 +421,14 @@ export async function verifyPayment(
         await createNotification(payment.userId, 'reward_ready', `Your R${REWARD_TOTAL} reward is scheduled for ${formatDate(rewardDate)}.`);
       }
       await checkAndAwardPreLaunchReward(payment.userId);
+
+      if (user.phone) {
+        const firstName = (user.fullName || '').split(' ')[0] || 'there';
+        sendSMSNotification(
+          user.phone,
+          `GoDirect247: Hi ${firstName}, we've received your payment and your funeral cover policy is now ACTIVE. Welcome aboard! Need help? Call 021 140 8083 / 010 003 0789 or email payments@godirect247.co.za.`
+        );
+      }
     }
 
     await updateDoc(userRef, updates);
@@ -442,11 +450,27 @@ export async function updateMemberStatus(
   status: 'Active' | 'Pending' | 'Lapsed'
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await updateDoc(doc(db, 'users', memberId), {
+    const userRef = doc(db, 'users', memberId);
+    const userSnap = await getDoc(userRef);
+    const wasActivated = userSnap.exists() ? (userSnap.data() as UserData).isActivated === true : false;
+
+    await updateDoc(userRef, {
       isActivated: status === 'Active',
       status,
       updatedAt: serverTimestamp(),
     });
+
+    if (status === 'Active' && !wasActivated && userSnap.exists()) {
+      const user = userSnap.data() as UserData;
+      if (user.phone) {
+        const firstName = (user.fullName || '').split(' ')[0] || 'there';
+        sendSMSNotification(
+          user.phone,
+          `GoDirect247: Hi ${firstName}, we've received your payment and your funeral cover policy is now ACTIVE. Welcome aboard! Need help? Call 021 140 8083 / 010 003 0789 or email payments@godirect247.co.za.`
+        );
+      }
+    }
+
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Update failed' };
@@ -1236,6 +1260,13 @@ export async function activateAdditionalPolicy(
     const userSnap = await getDoc(doc(db, 'users', policy.userId));
     if (userSnap.exists()) {
       const userData = userSnap.data() as UserData;
+      if (userData.phone) {
+        const firstName = (userData.fullName || '').split(' ')[0] || 'there';
+        sendSMSNotification(
+          userData.phone,
+          `GoDirect247: Hi ${firstName}, we've received your payment and your additional ${policy.tier} policy for ${policy.mainMemberName} is now ACTIVE. Need help? Call 021 140 8083 / 010 003 0789 or email payments@godirect247.co.za.`
+        );
+      }
       if (userData.referredBy) {
         await creditAdditionalPolicyCommission(userData.referredBy, policy.userId, policy.totalApplicationFee, policyId);
       }
