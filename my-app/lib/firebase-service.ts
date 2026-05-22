@@ -1159,12 +1159,23 @@ export async function createAdditionalPolicy(
       extendedFamilyFee: data.extendedFamilyFee,
       totalApplicationFee: data.totalApplicationFee,
       status: 'pending_payment',
+      paymentMethod: data.paymentMethod ?? 'yoco',
+      customerEmail: data.customerEmail ?? null,
       yocoCheckoutId: null,
       activationDate: null,
       funeralCoverExpiry: null,
       createdAt: now,
       updatedAt: now,
     });
+
+    if (data.paymentMethod === 'eft') {
+      await createNotification(
+        userId,
+        'paid',
+        `EFT invoice for R${data.totalApplicationFee.toLocaleString()} (${data.tier} additional cover) has been generated. Reference: GD-${ref.id.slice(0, 8).toUpperCase()}. Email proof of payment to support@godirect247.com.`
+      );
+    }
+
     return { success: true, policyId: ref.id };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Could not create policy' };

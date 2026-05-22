@@ -3,11 +3,17 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, CheckCircle, Plus, Trash, Shield, Crown } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, CheckCircle, Plus, Trash, Shield, Crown, CreditCard, Bank } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/auth-context';
 import { createAdditionalPolicy } from '@/lib/firebase-service';
 import { PLUS_TIERS, GOLD_TIERS } from '@/lib/constants';
 import type { Dependent, AdditionalPolicyFormData } from '@/lib/types';
+import {
+  EFT_DETAILS,
+  YOCO_HANDLING_FEE_RATE,
+  calcYocoFee,
+  type PaymentMethod,
+} from '@/lib/pearl-types';
 
 type PlanType = 'plus' | 'gold';
 
@@ -57,6 +63,7 @@ export default function NewPackagePage() {
   const [extId, setExtId] = useState('');
 
   const [forSelf, setForSelf] = useState<boolean | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('yoco');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -70,6 +77,9 @@ export default function NewPackagePage() {
   const hasExtendedFamily = showExtended && Boolean(extName);
   const extendedFamilyFee = hasExtendedFamily ? baseActivationFee * 0.2 : 0;
   const totalApplicationFee = baseActivationFee + extendedFamilyFee;
+  const yocoHandlingFee =
+    paymentMethod === 'yoco' ? calcYocoFee(totalApplicationFee) : 0;
+  const payableTotal = totalApplicationFee + yocoHandlingFee;
 
   function addDependent() {
     if (dependents.length >= 4) return;
@@ -123,6 +133,8 @@ export default function NewPackagePage() {
       baseActivationFee,
       extendedFamilyFee,
       totalApplicationFee,
+      paymentMethod,
+      customerEmail: userData.email || '',
     };
 
     const createRes = await createAdditionalPolicy(user.uid, formData);
@@ -132,13 +144,18 @@ export default function NewPackagePage() {
       return;
     }
 
+    if (paymentMethod === 'eft') {
+      router.push(`/invoice/additional-policy/${createRes.policyId}`);
+      return;
+    }
+
     const checkoutRes = await fetch('/api/create-additional-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         policyId: createRes.policyId,
         userId: user.uid,
-        amountInCents: Math.round(totalApplicationFee * 100),
+        amountInCents: Math.round(payableTotal * 100),
       }),
     });
     const data = await checkoutRes.json();
@@ -483,6 +500,79 @@ export default function NewPackagePage() {
           </div>
         )}
 
+        {/* Payment method */}
+        {planType && tier && (
+          <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
+            <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-3">
+              Payment method
+            </p>
+            <div className="grid grid-cols-2 gap-3 mb-2">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('yoco')}
+                className={`text-left rounded-xl border p-4 transition-all ${
+                  paymentMethod === 'yoco'
+                    ? 'bg-[#f3cc20]/10 border-[#f3cc20]'
+                    : 'bg-white/5 border-white/15 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <CreditCard
+                    size={18}
+                    weight="fill"
+                    className={paymentMethod === 'yoco' ? 'text-[#f3cc20]' : 'text-white/60'}
+                  />
+                  <span className="text-white font-semibold text-sm">Card · Yoco</span>
+                </div>
+                <p className="text-white/50 text-xs">
+                  Instant card payment. <span className="text-[#f3cc20]">{(YOCO_HANDLING_FEE_RATE * 100).toFixed(1)}% fee</span>.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('eft')}
+                className={`text-left rounded-xl border p-4 transition-all ${
+                  paymentMethod === 'eft'
+                    ? 'bg-[#f3cc20]/10 border-[#f3cc20]'
+                    : 'bg-white/5 border-white/15 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Bank
+                    size={18}
+                    weight="fill"
+                    className={paymentMethod === 'eft' ? 'text-[#f3cc20]' : 'text-white/60'}
+                  />
+                  <span className="text-white font-semibold text-sm">EFT · Bank Zero</span>
+                </div>
+                <p className="text-white/50 text-xs">
+                  Manual bank transfer. <span className="text-[#00a87e]">R0.00 fee</span>.
+                </p>
+              </button>
+            </div>
+
+            {paymentMethod === 'eft' && (
+              <div className="bg-[#191c1f] border border-white/10 rounded-xl p-4 mt-3 text-xs">
+                <p className="text-[#f3cc20] font-semibold mb-2">EFT banking details</p>
+                <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 text-white/70">
+                  <span className="text-white/45">Bank</span>
+                  <span className="text-white font-medium">{EFT_DETAILS.bankName}</span>
+                  <span className="text-white/45">Account holder</span>
+                  <span className="text-white font-medium">{EFT_DETAILS.accountHolder}</span>
+                  <span className="text-white/45">Account number</span>
+                  <span className="text-white font-mono">{EFT_DETAILS.accountNumber}</span>
+                  <span className="text-white/45">Branch code</span>
+                  <span className="text-white font-mono">{EFT_DETAILS.branchCode}</span>
+                </div>
+                <p className="text-white/40 text-[11px] mt-3">
+                  After you submit, we&apos;ll generate a downloadable invoice with a
+                  unique reference. Use that as the EFT payment reference.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Summary + Pay */}
         {planType && tier && (
           <div className="bg-[#f3cc20]/10 border border-[#f3cc20]/40 rounded-2xl p-5 mb-4">
@@ -498,10 +588,16 @@ export default function NewPackagePage() {
                   <span className="text-white font-semibold">{formatCurrency(extendedFamilyFee)}</span>
                 </div>
               )}
+              {yocoHandlingFee > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-white/60">Yoco handling fee ({(YOCO_HANDLING_FEE_RATE * 100).toFixed(1)}%)</span>
+                  <span className="text-white font-semibold">{formatCurrency(yocoHandlingFee)}</span>
+                </div>
+              )}
               <div className="flex justify-between border-t border-white/10 pt-2 mt-2">
                 <span className="text-white font-bold">Total</span>
                 <span className="text-[#f3cc20] font-display font-extrabold text-lg">
-                  {formatCurrency(totalApplicationFee)}
+                  {formatCurrency(payableTotal)}
                 </span>
               </div>
             </div>
@@ -517,12 +613,16 @@ export default function NewPackagePage() {
               disabled={submitting}
               className="w-full bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3.5 rounded-xl hover:bg-[#c9a800] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {submitting ? 'Starting payment…' : (
-                <>Pay {formatCurrency(totalApplicationFee)} <ArrowRight size={16} /></>
-              )}
+              {submitting
+                ? (paymentMethod === 'eft' ? 'Generating invoice…' : 'Starting payment…')
+                : paymentMethod === 'eft'
+                  ? (<>Generate EFT invoice ({formatCurrency(payableTotal)}) <ArrowRight size={16} /></>)
+                  : (<>Pay {formatCurrency(payableTotal)} by Card <ArrowRight size={16} /></>)}
             </button>
             <p className="text-white/30 text-xs text-center mt-2">
-              Secured by Yoco · Card payments accepted
+              {paymentMethod === 'eft'
+                ? 'Cover activates within 1 working day of EFT clearing.'
+                : 'Secured by Yoco · Card payments accepted'}
             </p>
           </div>
         )}

@@ -215,6 +215,8 @@ export interface AdditionalPolicy {
   extendedFamilyFee: number;
   totalApplicationFee: number;
   status: 'pending_payment' | 'active' | 'cancelled';
+  paymentMethod?: 'yoco' | 'eft';
+  customerEmail?: string;
   yocoCheckoutId?: string | null;
   activationDate: Timestamp | null;
   funeralCoverExpiry: Timestamp | null;
@@ -235,4 +237,6 @@ export interface AdditionalPolicyFormData {
   baseActivationFee: number;
   extendedFamilyFee: number;
   totalApplicationFee: number;
+  paymentMethod?: 'yoco' | 'eft';
+  customerEmail?: string;
 }
