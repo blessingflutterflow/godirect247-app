@@ -1230,6 +1230,32 @@ export async function getUserAdditionalPolicies(userId: string): Promise<Additio
   }
 }
 
+export async function getAllAdditionalPolicies(): Promise<{
+  success: boolean;
+  policies?: AdditionalPolicy[];
+  error?: string;
+}> {
+  try {
+    const snap = await getDocs(query(collection(db, 'additionalPolicies'), orderBy('createdAt', 'desc')));
+    const policies = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AdditionalPolicy));
+    return { success: true, policies };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to load additional policies' };
+  }
+}
+
+export async function markAdditionalPolicyPaid(
+  policyId: string,
+  adminId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const reference = `EFT-${adminId.slice(0, 6).toUpperCase()}`;
+    return await activateAdditionalPolicy(policyId, reference);
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Could not mark as paid' };
+  }
+}
+
 export async function activateAdditionalPolicy(
   policyId: string,
   yocoCheckoutId: string

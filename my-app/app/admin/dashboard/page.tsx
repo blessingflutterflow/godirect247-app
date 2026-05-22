@@ -11,10 +11,11 @@ import {
   verifyPayment, updateMemberStatus, logoutUser, formatDate,
   getAllWithdrawals, processWithdrawal, releaseReward, getAllTrios,
   updateIdentityVerificationStatus, buildActivationSMS, sendActivationSMS,
+  getAllAdditionalPolicies, markAdditionalPolicyPaid,
 } from '@/lib/firebase-service';
-import type { UserData, Payment, Reward, Referral, Withdrawal, Trio } from '@/lib/types';
+import type { UserData, Payment, Reward, Referral, Withdrawal, Trio, AdditionalPolicy } from '@/lib/types';
 
-type TabId = 'members' | 'payments' | 'rewards' | 'referrals' | 'withdrawals' | 'teams';
+type TabId = 'members' | 'packages' | 'payments' | 'rewards' | 'referrals' | 'withdrawals' | 'teams';
 type StatusFilter = '' | 'Active' | 'Pending' | 'Lapsed';
 type PlanFilter = '' | 'Plus' | 'Gold';
 
@@ -52,6 +53,8 @@ export default function AdminDashboardPage() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [trios, setTrios] = useState<Trio[]>([]);
+  const [additionalPolicies, setAdditionalPolicies] = useState<AdditionalPolicy[]>([]);
+  const [packageStatusFilter, setPackageStatusFilter] = useState<'' | 'active' | 'pending_payment' | 'cancelled'>('');
   const [tab, setTab] = useState<TabId>('members');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
@@ -102,9 +105,26 @@ export default function AdminDashboardPage() {
     if (result.success && result.trios) setTrios(result.trios);
   }, []);
 
+  const loadAdditionalPolicies = useCallback(async () => {
+    const result = await getAllAdditionalPolicies();
+    if (result.success && result.policies) setAdditionalPolicies(result.policies);
+  }, []);
+
   useEffect(() => {
-    if (ready) { loadData(); loadPayments(); loadRewards(); loadReferrals(); loadWithdrawals(); loadTrios(); }
-  }, [ready, loadData, loadPayments, loadRewards, loadReferrals, loadWithdrawals, loadTrios]);
+    if (ready) { loadData(); loadPayments(); loadRewards(); loadReferrals(); loadWithdrawals(); loadTrios(); loadAdditionalPolicies(); }
+  }, [ready, loadData, loadPayments, loadRewards, loadReferrals, loadWithdrawals, loadTrios, loadAdditionalPolicies]);
+
+  async function handleMarkPackagePaid(policyId: string) {
+    const user = auth.currentUser;
+    if (!user) return;
+    if (!confirm('Mark this additional package as paid and activate it?')) return;
+    const res = await markAdditionalPolicyPaid(policyId, user.uid);
+    if (!res.success) {
+      alert(res.error || 'Could not activate additional package.');
+      return;
+    }
+    await Promise.all([loadAdditionalPolicies(), loadData()]);
+  }
 
   async function handleVerifyPayment(paymentId: string) {
     const user = auth.currentUser;
@@ -248,6 +268,7 @@ export default function AdminDashboardPage() {
         <div className="ani2 flex gap-2 mb-4 overflow-x-auto pb-1">
           {([
             { id: 'members', label: 'Members' },
+            { id: 'packages', label: `Packages${additionalPolicies.length ? ` (${additionalPolicies.length})` : ''}` },
             { id: 'payments', label: `Payments${payments.length ? ` (${payments.length})` : ''}` },
             { id: 'rewards', label: `Rewards${rewards.length ? ` (${rewards.length})` : ''}` },
             { id: 'referrals', label: `Referrals${referrals.length ? ` (${referrals.length})` : ''}` },
@@ -371,6 +392,160 @@ export default function AdminDashboardPage() {
             <div className="p-4 border-t border-white/10 text-white/30 text-xs">
               Showing {filtered.length} of {members.length} members
             </div>
+          </div>
+        )}
+
+        {/* Packages tab — additional / second policies */}
+        {tab === 'packages' && (
+          <div className="ani3 bg-[#191c1f] border border-white/10 rounded-2xl overflow-hidden">
+            <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1">
+                <h3 className="font-display font-bold text-white text-base">Additional packages (second policies)</h3>
+                <p className="text-white/40 text-xs mt-0.5">
+                  Every submitted package — paid or unpaid — appears here. Active and inactive both visible.
+                </p>
+              </div>
+              <select
+                value={packageStatusFilter}
+                onChange={(e) => setPackageStatusFilter(e.target.value as typeof packageStatusFilter)}
+                className="bg-white/10 border border-white/15 rounded-xl px-4 py-2.5 text-white text-sm"
+              >
+                <option value="" className="bg-[#191c1f]">All status</option>
+                <option value="active" className="bg-[#191c1f]">Active</option>
+                <option value="pending_payment" className="bg-[#191c1f]">Pending payment</option>
+                <option value="cancelled" className="bg-[#191c1f]">Cancelled</option>
+              </select>
+            </div>
+
+            {(() => {
+              const filteredPackages = additionalPolicies.filter(
+                (p) => !packageStatusFilter || p.status === packageStatusFilter
+              );
+              const activeCount = additionalPolicies.filter((p) => p.status === 'active').length;
+              const pendingCount = additionalPolicies.filter((p) => p.status === 'pending_payment').length;
+              return (
+                <>
+                  <div className="px-5 py-3 border-b border-white/10 flex gap-4 text-xs">
+                    <span className="text-[#00a87e] font-semibold">{activeCount} active</span>
+                    <span className="text-[#f3cc20] font-semibold">{pendingCount} pending</span>
+                    <span className="text-white/40">{additionalPolicies.length} total</span>
+                  </div>
+
+                  {/* Desktop table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          {['Buyer', 'For (main member)', 'Plan / Tier', 'Amount', 'Method', 'Status', 'Submitted', 'Action'].map((h) => (
+                            <th key={h} className="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredPackages.length === 0 ? (
+                          <tr><td className="px-5 py-4 text-white/40 text-sm" colSpan={8}>No additional packages yet</td></tr>
+                        ) : filteredPackages.map((p) => {
+                          const buyer = members.find((m) => m.id === p.userId);
+                          const planLabel = p.planType === 'gold' ? 'Gold' : 'Plus';
+                          const statusBadge: Record<string, string> = {
+                            active: 'Active',
+                            pending_payment: 'Pending',
+                            cancelled: 'Lapsed',
+                          };
+                          return (
+                            <tr key={p.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                              <td className="px-5 py-3.5">
+                                <div className="font-semibold text-white text-sm">{buyer?.fullName || p.userId.slice(0, 8)}</div>
+                                <div className="text-white/40 text-xs">{buyer?.email || p.customerEmail || ''}</div>
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <div className="text-white text-sm">{p.mainMemberName}</div>
+                                <div className="text-white/40 text-xs">{p.mainMemberIdNumber || '-'}</div>
+                              </td>
+                              <td className="px-5 py-3.5 text-white/80 text-sm">{planLabel} · {p.tier}</td>
+                              <td className="px-5 py-3.5 text-[#f3cc20] font-semibold text-sm">R{(p.totalApplicationFee || 0).toLocaleString()}</td>
+                              <td className="px-5 py-3.5 text-white/60 text-xs uppercase">{p.paymentMethod || '-'}</td>
+                              <td className="px-5 py-3.5"><StatusBadge status={statusBadge[p.status] || 'Pending'} /></td>
+                              <td className="px-5 py-3.5 text-white/40 text-xs">{formatDate(p.createdAt)}</td>
+                              <td className="px-5 py-3.5">
+                                <div className="flex gap-2">
+                                  {p.id && (
+                                    <a
+                                      href={`/invoice/additional-policy/${p.id}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-white/40 hover:text-white text-xs border border-white/15 rounded-full px-3 py-1 hover:border-white/30 transition-all"
+                                    >
+                                      Invoice
+                                    </a>
+                                  )}
+                                  {p.status === 'pending_payment' && p.id && (
+                                    <button
+                                      onClick={() => handleMarkPackagePaid(p.id!)}
+                                      className="bg-[#00a87e]/10 border border-[#00a87e]/20 text-[#00a87e] text-xs font-semibold px-3 py-1 rounded-full hover:bg-[#00a87e]/20 transition-all"
+                                    >
+                                      Activate
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile cards */}
+                  <div className="sm:hidden divide-y divide-white/5">
+                    {filteredPackages.length === 0 ? (
+                      <div className="p-4 text-white/40 text-sm">No additional packages yet</div>
+                    ) : filteredPackages.map((p) => {
+                      const buyer = members.find((m) => m.id === p.userId);
+                      const planLabel = p.planType === 'gold' ? 'Gold' : 'Plus';
+                      const statusBadge: Record<string, string> = {
+                        active: 'Active',
+                        pending_payment: 'Pending',
+                        cancelled: 'Lapsed',
+                      };
+                      return (
+                        <div key={p.id} className="p-4">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-white text-sm truncate">{buyer?.fullName || p.userId.slice(0, 8)}</div>
+                              <div className="text-white/40 text-xs truncate">For {p.mainMemberName}</div>
+                              <div className="text-white/40 text-xs">{planLabel} · {p.tier} · R{(p.totalApplicationFee || 0).toLocaleString()}</div>
+                              <div className="text-white/30 text-[10px] mt-0.5">{(p.paymentMethod || '-').toUpperCase()} · {formatDate(p.createdAt)}</div>
+                            </div>
+                            <StatusBadge status={statusBadge[p.status] || 'Pending'} />
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            {p.id && (
+                              <a
+                                href={`/invoice/additional-policy/${p.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-white/60 text-xs border border-white/15 rounded-full px-3 py-1.5 flex-1 text-center"
+                              >
+                                View invoice
+                              </a>
+                            )}
+                            {p.status === 'pending_payment' && p.id && (
+                              <button
+                                onClick={() => handleMarkPackagePaid(p.id!)}
+                                className="bg-[#00a87e]/10 border border-[#00a87e]/20 text-[#00a87e] text-xs font-semibold px-3 py-1.5 rounded-full flex-1"
+                              >
+                                Activate
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -859,6 +1034,72 @@ export default function AdminDashboardPage() {
                     {smsResult.ok ? '✓ SMS sent successfully' : `Failed: ${smsResult.error || 'Unknown error'}`}
                   </p>
                 )}
+              </div>
+
+              {/* Additional packages for this member */}
+              <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-white text-sm font-semibold">Additional packages</p>
+                  <span className="text-white/40 text-xs">
+                    {additionalPolicies.filter((p) => p.userId === drawer.id).length} total
+                  </span>
+                </div>
+                {(() => {
+                  const memberPackages = additionalPolicies.filter((p) => p.userId === drawer.id);
+                  if (memberPackages.length === 0) {
+                    return <p className="text-white/40 text-xs">No additional packages purchased yet.</p>;
+                  }
+                  return (
+                    <div className="space-y-2">
+                      {memberPackages.map((p) => {
+                        const statusBadge: Record<string, string> = {
+                          active: 'Active',
+                          pending_payment: 'Pending',
+                          cancelled: 'Lapsed',
+                        };
+                        const planLabel = p.planType === 'gold' ? 'Gold' : 'Plus';
+                        return (
+                          <div key={p.id} className="border border-white/10 rounded-xl p-3">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <div className="min-w-0">
+                                <p className="text-white text-xs font-semibold truncate">
+                                  {planLabel} · {p.tier}
+                                </p>
+                                <p className="text-white/40 text-[11px] truncate">
+                                  For {p.mainMemberName} · R{(p.totalApplicationFee || 0).toLocaleString()}
+                                </p>
+                                <p className="text-white/30 text-[10px] mt-0.5">
+                                  {(p.paymentMethod || '-').toUpperCase()} · {formatDate(p.createdAt)}
+                                </p>
+                              </div>
+                              <StatusBadge status={statusBadge[p.status] || 'Pending'} />
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                              {p.id && (
+                                <a
+                                  href={`/invoice/additional-policy/${p.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-white/60 text-[11px] border border-white/15 rounded-full px-2.5 py-1 flex-1 text-center"
+                                >
+                                  Invoice
+                                </a>
+                              )}
+                              {p.status === 'pending_payment' && p.id && (
+                                <button
+                                  onClick={() => handleMarkPackagePaid(p.id!)}
+                                  className="bg-[#00a87e]/10 border border-[#00a87e]/20 text-[#00a87e] text-[11px] font-semibold px-2.5 py-1 rounded-full flex-1"
+                                >
+                                  Activate
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Earnings trend */}
