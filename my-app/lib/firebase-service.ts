@@ -448,7 +448,7 @@ export async function verifyPayment(
 export async function updateMemberStatus(
   memberId: string,
   status: 'Active' | 'Pending' | 'Lapsed'
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; wasActivated?: boolean; error?: string }> {
   try {
     const userRef = doc(db, 'users', memberId);
     const userSnap = await getDoc(userRef);
@@ -460,20 +460,33 @@ export async function updateMemberStatus(
       updatedAt: serverTimestamp(),
     });
 
-    if (status === 'Active' && !wasActivated && userSnap.exists()) {
-      const user = userSnap.data() as UserData;
-      if (user.phone) {
-        const firstName = (user.fullName || '').split(' ')[0] || 'there';
-        sendSMSNotification(
-          user.phone,
-          `GoDirect247: Hi ${firstName}, we've received your payment and your funeral cover policy is now ACTIVE. Welcome aboard! Need help? Call 021 140 8083 / 010 003 0789 or email payments@godirect247.co.za.`
-        );
-      }
-    }
-
-    return { success: true };
+    return { success: true, wasActivated };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Update failed' };
+  }
+}
+
+export function buildActivationSMS(fullName?: string | null): string {
+  const firstName = (fullName || '').split(' ')[0] || 'there';
+  return `GoDirect247: Hi ${firstName}, we've received your payment and your funeral cover policy is now ACTIVE. Welcome aboard! Need help? Call 021 140 8083 / 010 003 0789 or email payments@godirect247.co.za.`;
+}
+
+export async function sendActivationSMS(
+  phone: string,
+  fullName?: string | null
+): Promise<{ success: boolean; error?: string }> {
+  if (!phone) return { success: false, error: 'No phone number on file' };
+  try {
+    const res = await fetch('/api/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: phone, message: buildActivationSMS(fullName) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { success: false, error: data.error || 'Failed to send SMS' };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to send SMS' };
   }
 }
 

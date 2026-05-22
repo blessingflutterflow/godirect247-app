@@ -4,13 +4,13 @@ import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { CheckCircle, MagnifyingGlass, X, SignOut, TrendUp, Warning, ShoppingBag } from '@phosphor-icons/react';
+import { CheckCircle, MagnifyingGlass, X, SignOut, TrendUp, Warning, ShoppingBag, ChatCircleText, PaperPlaneTilt } from '@phosphor-icons/react';
 import { auth } from '@/lib/firebase';
 import {
   checkIsAdmin, getAllMembers, getPendingPayments, getAllRewards, getAllReferrals,
   verifyPayment, updateMemberStatus, logoutUser, formatDate,
   getAllWithdrawals, processWithdrawal, releaseReward, getAllTrios,
-  updateIdentityVerificationStatus,
+  updateIdentityVerificationStatus, buildActivationSMS, sendActivationSMS,
 } from '@/lib/firebase-service';
 import type { UserData, Payment, Reward, Referral, Withdrawal, Trio } from '@/lib/types';
 
@@ -57,6 +57,9 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
   const [planFilter, setPlanFilter] = useState<PlanFilter>('');
   const [drawer, setDrawer] = useState<(UserData & { id: string }) | null>(null);
+  const [smsModal, setSmsModal] = useState<{ memberId: string; memberName: string; phone: string; message: string } | null>(null);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsResult, setSmsResult] = useState<{ memberId: string; ok: boolean; error?: string } | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -112,12 +115,39 @@ export default function AdminDashboardPage() {
   }
 
   async function handleSetStatus(id: string, status: 'Active' | 'Pending' | 'Lapsed') {
-    await updateMemberStatus(id, status);
+    const member = members.find((m) => m.id === id);
+    const result = await updateMemberStatus(id, status);
     setMembers((prev) =>
       prev.map((m) => m.id === id ? { ...m, status, isActivated: status === 'Active' } : m)
     );
     setDrawer((prev) => prev?.id === id ? { ...prev, status, isActivated: status === 'Active' } : prev);
+
+    if (status === 'Active' && result.success && !result.wasActivated && member) {
+      if (member.phone) {
+        setSmsResult(null);
+        setSmsModal({
+          memberId: id,
+          memberName: member.fullName || 'Member',
+          phone: member.phone,
+          message: buildActivationSMS(member.fullName),
+        });
+      } else {
+        alert('Policy activated, but no phone number on file — acknowledgement SMS not sent.');
+      }
+    }
+
     await loadData();
+  }
+
+  async function handleSendAcknowledgementSMS(memberId: string, phone: string, fullName?: string | null) {
+    setSmsSending(true);
+    setSmsResult(null);
+    const result = await sendActivationSMS(phone, fullName);
+    setSmsSending(false);
+    setSmsResult({ memberId, ok: result.success, error: result.error });
+    if (result.success) {
+      setTimeout(() => setSmsModal(null), 1200);
+    }
   }
 
   async function handleIdentityReview(id: string, status: 'approved' | 'rejected') {
@@ -603,6 +633,52 @@ export default function AdminDashboardPage() {
 
       </div>
 
+      {/* Acknowledgement SMS modal (auto-opens on activation) */}
+      {smsModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => !smsSending && setSmsModal(null)}
+          />
+          <div className="relative bg-[#191c1f] border border-white/10 rounded-2xl max-w-md w-full p-5">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle size={20} weight="fill" className="text-[#00a87e]" />
+              <h3 className="font-display font-bold text-white text-lg">Policy Activated</h3>
+            </div>
+            <p className="text-white/50 text-xs mb-4">
+              Send acknowledgement SMS to {smsModal.memberName}?
+            </p>
+            <div className="bg-white/[0.04] border border-white/10 rounded-xl p-3 mb-3">
+              <p className="text-white/40 text-xs uppercase tracking-wide font-semibold mb-1">To</p>
+              <p className="text-white text-sm">{smsModal.phone}</p>
+            </div>
+            <div className="bg-black/30 border border-white/10 rounded-xl p-3 mb-4 text-white/70 text-xs whitespace-pre-wrap leading-relaxed">
+              {smsModal.message}
+            </div>
+            {smsResult?.memberId === smsModal.memberId && !smsResult.ok && (
+              <p className="text-[#e23b4a] text-xs mb-3">Failed: {smsResult.error || 'Unknown error'}</p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setSmsModal(null)}
+                disabled={smsSending}
+                className="bg-white/5 border border-white/10 text-white/70 text-xs font-semibold py-2.5 rounded-xl hover:bg-white/10 transition-all disabled:opacity-40"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => handleSendAcknowledgementSMS(smsModal.memberId, smsModal.phone, smsModal.memberName)}
+                disabled={smsSending}
+                className="bg-[#00a87e]/10 border border-[#00a87e]/20 text-[#00a87e] text-xs font-semibold py-2.5 rounded-xl hover:bg-[#00a87e]/20 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <PaperPlaneTilt size={14} weight="fill" />
+                {smsSending ? 'Sending…' : smsResult?.ok && smsResult.memberId === smsModal.memberId ? '✓ Sent' : 'Send SMS'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Member drawer */}
       {drawer && (
         <div className="fixed inset-0 z-50">
@@ -756,6 +832,33 @@ export default function AdminDashboardPage() {
                 >
                   Lapse
                 </button>
+              </div>
+
+              {/* Acknowledgement SMS */}
+              <div className="bg-white/[0.05] border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-white text-sm font-semibold">Acknowledgement SMS</p>
+                    <p className="text-white/40 text-xs">{drawer.phone || 'No phone on file'}</p>
+                  </div>
+                  <ChatCircleText size={20} className="text-[#f3cc20]" />
+                </div>
+                <div className="bg-black/30 border border-white/10 rounded-xl p-3 text-white/70 text-xs mb-3 whitespace-pre-wrap leading-relaxed">
+                  {buildActivationSMS(drawer.fullName)}
+                </div>
+                <button
+                  onClick={() => drawer.phone && handleSendAcknowledgementSMS(drawer.id, drawer.phone, drawer.fullName)}
+                  disabled={!drawer.phone || smsSending}
+                  className="w-full bg-[#f3cc20]/10 border border-[#f3cc20]/20 text-[#f3cc20] text-xs font-semibold py-2.5 rounded-xl hover:bg-[#f3cc20]/20 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  <PaperPlaneTilt size={14} weight="fill" />
+                  {smsSending ? 'Sending…' : 'Resend SMS'}
+                </button>
+                {smsResult?.memberId === drawer.id && (
+                  <p className={`mt-2 text-xs ${smsResult.ok ? 'text-[#00a87e]' : 'text-[#e23b4a]'}`}>
+                    {smsResult.ok ? '✓ SMS sent successfully' : `Failed: ${smsResult.error || 'Unknown error'}`}
+                  </p>
+                )}
               </div>
 
               {/* Earnings trend */}
