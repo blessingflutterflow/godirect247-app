@@ -68,7 +68,7 @@ export default function AdditionalPolicyInvoicePage({
                 ? 'cancelled'
                 : 'awaiting payment',
           notes:
-            'Once your payment reflects, this additional cover will be activated within 1 working day. Email proof of payment to support@godirect247.com to speed up activation.',
+            'Once your payment reflects, this additional cover will be activated within 1 working day. Email proof of payment to payments@godirect247.co.za to speed up activation.',
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load invoice.');

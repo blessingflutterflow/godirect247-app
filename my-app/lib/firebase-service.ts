@@ -541,7 +541,7 @@ export async function createEftActivationInvoice(
     await createNotification(
       uid,
       'paid',
-      `EFT invoice for R${amount.toLocaleString()} has been generated. Reference: GD-${ref.id.slice(0, 8).toUpperCase()}. Email proof of payment to support@godirect247.com.`
+      `EFT invoice for R${amount.toLocaleString()} has been generated. Reference: GD-${ref.id.slice(0, 8).toUpperCase()}. Email proof of payment to payments@godirect247.co.za.`
     );
 
     return { success: true, invoiceId: ref.id };
@@ -1172,7 +1172,7 @@ export async function createAdditionalPolicy(
       await createNotification(
         userId,
         'paid',
-        `EFT invoice for R${data.totalApplicationFee.toLocaleString()} (${data.tier} additional cover) has been generated. Reference: GD-${ref.id.slice(0, 8).toUpperCase()}. Email proof of payment to support@godirect247.com.`
+        `EFT invoice for R${data.totalApplicationFee.toLocaleString()} (${data.tier} additional cover) has been generated. Reference: GD-${ref.id.slice(0, 8).toUpperCase()}. Email proof of payment to payments@godirect247.co.za.`
       );
     }
 

@@ -329,8 +329,8 @@ export function QuotationCalculator() {
       <p className="mt-4 text-xs leading-relaxed text-white/35">
         This calculator is for information purposes only and helps customers make well-informed
         decisions. For further information, please contact your RJ, Introducer, or Sales Team at{' '}
-        <a href="mailto:support@godirect247.com" className="font-semibold text-[#f3cc20]">
-          support@godirect247.com
+        <a href="mailto:payments@godirect247.co.za" className="font-semibold text-[#f3cc20]">
+          payments@godirect247.co.za
         </a>
         . Public holiday adjustments use standard South African public holidays.
       </p>

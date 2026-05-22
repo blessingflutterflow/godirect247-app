@@ -34,7 +34,7 @@ function wrapBrandedEmail(html: string): string {
               <div style="position:relative;z-index:1;">${html}</div>
             </div>
             <div style="border-top:1px solid #e4e8eb;padding:14px 22px;font-size:12px;color:#505a63;">
-              <strong>GoDirect247</strong> · godirect247.com · WhatsApp 078 063 8753
+              <strong>GoDirect247</strong> · godirect247.com · Tel: 021 140 8083 / 010 003 0789
             </div>
           </div>
         </div>

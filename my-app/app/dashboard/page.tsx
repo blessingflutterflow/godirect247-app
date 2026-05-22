@@ -767,7 +767,6 @@ function DashboardContent() {
                   <p>Sandton: 010 003 0789</p>
                   <p>Cape Town: 021 140 8083</p>
                   <p>East London: 014 547 0285</p>
-                  <p>WhatsApp: 078 063 8753</p>
                   <p>godirect247.com</p>
                 </div>
               </div>

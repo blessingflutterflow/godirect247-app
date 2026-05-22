@@ -87,7 +87,7 @@ export function VoiceEnquiry() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: 'support@godirect247.com',
+          to: 'payments@godirect247.co.za',
           subject: 'New PEARL enquiry from godirect247.com',
           html: `
             <h2 style="margin:0 0 12px;font-size:18px;color:#191c1f;">New PEARL enquiry</h2>

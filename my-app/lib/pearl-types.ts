@@ -20,8 +20,8 @@ export const COMPANY_DETAILS = {
   group: 'Zarkudu Group',
   fspLicence: 'FSP Licence JR 50841',
   website: 'godirect247.com',
-  supportPhone: '078 063 8753',
-  supportEmail: 'support@godirect247.com',
+  supportPhone: 'Tel: 021 140 8083 / 010 003 0789',
+  supportEmail: 'payments@godirect247.co.za',
 } as const;
 
 export type PearlPlan = 'once-off' | 'monthly';

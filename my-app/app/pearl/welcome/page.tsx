@@ -243,7 +243,7 @@ function buildWelcomeHtml(fullName: string, email: string, planLabel: string): s
       </div>
     </div>
     <p style="margin:18px 0 0;font-size:14px;color:#505a63;line-height:1.55;">
-      Need help? Reply to this email or WhatsApp us on 078 063 8753.<br/>
+      Need help? Reply to this email or call us on 021 140 8083 / 010 003 0789.<br/>
       With you always — the GoDirect247 team.
     </p>
   `;
