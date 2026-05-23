@@ -13,6 +13,56 @@ export const MAX_MONTHLY_HANDSHAKES = 3;
 export const HANDSHAKE_START_DATE = new Date('2026-05-25T00:00:00');
 export const HANDSHAKE_END_DATE = new Date('2026-09-30T23:59:59');
 
+// ── Generosity Reward · Marketing Acceleration (MLM) ──
+export const GENEROSITY_YOU_CONTRIBUTION = 650;
+export const GENEROSITY_PEARL_CONTRIBUTION = 350;
+export const GENEROSITY_TOTAL_CONTRIBUTION = 1000;
+export const GENEROSITY_COMMISSION_RATE = 0.10;
+export const GENEROSITY_COMMISSION_PER_ACTIVATION = 100; // 10% × R1,000
+export const GENEROSITY_MAX_GENERATIONS = 6;
+export const GENEROSITY_EST_PER_WEEK = 3;
+
+export interface GenerationProjection {
+  week: number;
+  generation: string;
+  members: number;
+  commission: number;
+}
+
+export const GENEROSITY_PROJECTION: GenerationProjection[] = [
+  { week: 1, generation: 'Gen 1', members: 3,   commission: 300 },
+  { week: 2, generation: 'Gen 2', members: 9,   commission: 900 },
+  { week: 3, generation: 'Gen 3', members: 27,  commission: 2700 },
+  { week: 4, generation: 'Gen 4', members: 81,  commission: 8100 },
+  { week: 5, generation: 'Gen 5', members: 243, commission: 24300 },
+  { week: 6, generation: 'Gen 6', members: 729, commission: 72900 },
+];
+
+export const GENEROSITY_TOTAL_MEMBERS = 1092;
+export const GENEROSITY_TOTAL_POTENTIAL = 109200;
+
+// ── PEARL daily social media activities ──
+export const PEARL_ACTIVITY_EARNING = 50;
+export const PEARL_ACTIVITIES_PER_DAY = 3;
+export const PEARL_DAILY_TOTAL = 150;
+export const PEARL_WORKING_DAYS_PER_WEEK = 6;
+export const PEARL_WEEKLY_TOTAL = 900;
+export const PEARL_6WEEK_TOTAL = 5400;
+
+export interface PearlActivity {
+  action: string;
+  platform: string;
+  earning: number;
+}
+
+export const PEARL_ACTIVITIES: PearlActivity[] = [
+  { action: 'Video Post',         platform: 'TikTok',   earning: 50 },
+  { action: 'Video Post',         platform: 'Facebook', earning: 50 },
+  { action: 'Video Status Share', platform: 'WhatsApp', earning: 50 },
+];
+
+export const GENEROSITY_COMBINED_6WEEK_POTENTIAL = 114600;
+
 
 export interface TierData {
   name: string;

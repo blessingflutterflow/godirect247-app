@@ -95,6 +95,14 @@ export interface UserData {
   trioId?: string | null;
   fundedBy?: string | null;
   downstreamRewards?: number;
+  // Generosity MLM tracking — populated as activations flow through the 6 generations
+  generationActivations?: number[]; // length 6
+  generationEarnings?: number[];    // length 6 (R)
+  // PEARL daily social media activity tracking
+  pearlActivityEarnings?: number;       // lifetime R earned from PEARL's daily posts
+  pearlActivitiesToday?: number;        // count of activities posted today (0-3)
+  pearlActivitiesLastDate?: Timestamp | null;
+  pearlActivitiesThisWeek?: number;     // count of activities this week
   updatedAt?: Timestamp;
 }
 

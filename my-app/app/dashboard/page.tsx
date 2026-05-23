@@ -23,7 +23,13 @@ import type { ReferralStats } from '@/lib/firebase-service';
 import type { Withdrawal, Trio, AdditionalPolicy } from '@/lib/types';
 import type { AppNotification, UserData } from '@/lib/types';
 import type { Timestamp } from 'firebase/firestore';
-import { PLUS_TIERS, GOLD_TIERS, ACTIVATION_AMOUNT, SHARE_MIN_WITHDRAWAL, GENEROSITY_STEPS } from '@/lib/constants';
+import {
+  PLUS_TIERS, GOLD_TIERS, ACTIVATION_AMOUNT, SHARE_MIN_WITHDRAWAL, GENEROSITY_STEPS,
+  GENEROSITY_PROJECTION, GENEROSITY_TOTAL_POTENTIAL, GENEROSITY_TOTAL_MEMBERS,
+  GENEROSITY_COMMISSION_PER_ACTIVATION,
+  PEARL_ACTIVITIES, PEARL_DAILY_TOTAL, PEARL_WEEKLY_TOTAL, PEARL_6WEEK_TOTAL,
+  PEARL_ACTIVITIES_PER_DAY, PEARL_WORKING_DAYS_PER_WEEK,
+} from '@/lib/constants';
 import { assessSelfieQuality } from '@/lib/selfie-quality';
 
 
@@ -1041,7 +1047,7 @@ function DashboardContent() {
                   <p className="text-white/60 text-xs mb-3 italic">
                     "Let us not become weary in doing good..."
                   </p>
-                  <button 
+                  <button
                     onClick={handleUpgrade}
                     className="w-full bg-[#f3cc20] hover:bg-[#f3cc20]/90 text-dark font-display font-black py-3 rounded-xl transition-all shadow-xl shadow-[#f3cc20]/20 flex items-center justify-center gap-2"
                   >
@@ -1055,6 +1061,143 @@ function DashboardContent() {
               )}
             </div>
           </div>
+
+          {/* ── Generosity MLM Tracker · 6 Generations ── */}
+          {(() => {
+            const genActivations = u.generationActivations || [0, 0, 0, 0, 0, 0];
+            const genEarnings = u.generationEarnings || [0, 0, 0, 0, 0, 0];
+            const earnedTotal = genEarnings.reduce((a, b) => a + b, 0);
+            const activatedTotal = genActivations.reduce((a, b) => a + b, 0);
+            const progressPct = Math.min(100, Math.round((earnedTotal / GENEROSITY_TOTAL_POTENTIAL) * 100));
+
+            const today = new Date().toDateString();
+            const lastActivityDate = toDate(u.pearlActivitiesLastDate)?.toDateString();
+            const activitiesToday = lastActivityDate === today ? (u.pearlActivitiesToday || 0) : 0;
+            const pearlEarned = u.pearlActivityEarnings || 0;
+            const pearlWeek = u.pearlActivitiesThisWeek || 0;
+
+            return (
+              <div className="bg-gradient-to-br from-[#0682B4]/15 to-transparent border border-[#0682B4]/30 rounded-2xl p-5 mb-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg bg-[#0682B4] flex items-center justify-center">
+                    <TrendUp size={18} weight="bold" className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-extrabold text-white text-base leading-none">Marketing Acceleration</h3>
+                    <p className="text-[#0682B4] text-[10px] font-bold uppercase tracking-widest mt-1">6-Generation MLM Tracker</p>
+                  </div>
+                </div>
+
+                {/* Combined summary */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="bg-white/[0.04] border border-white/10 rounded-xl p-3 text-center">
+                    <p className="text-white/40 text-[9px] uppercase font-semibold mb-1">Earned</p>
+                    <p className="font-display font-bold text-[#f3cc20] text-lg leading-none">R{(earnedTotal + pearlEarned).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white/[0.04] border border-white/10 rounded-xl p-3 text-center">
+                    <p className="text-white/40 text-[9px] uppercase font-semibold mb-1">Activations</p>
+                    <p className="font-display font-bold text-white text-lg leading-none">{activatedTotal}</p>
+                  </div>
+                  <div className="bg-white/[0.04] border border-white/10 rounded-xl p-3 text-center">
+                    <p className="text-white/40 text-[9px] uppercase font-semibold mb-1">Potential</p>
+                    <p className="font-display font-bold text-white/80 text-lg leading-none">R{GENEROSITY_TOTAL_POTENTIAL.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mb-5">
+                  <div className="flex justify-between text-[10px] text-white/40 mb-1.5">
+                    <span>Progress to 6-week potential</span>
+                    <span className="text-white font-semibold">{progressPct}%</span>
+                  </div>
+                  <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-[#0682B4] to-[#f3cc20] rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+                  </div>
+                </div>
+
+                {/* 6-Generation breakdown */}
+                <p className="text-white/70 text-xs font-semibold uppercase tracking-wider mb-2">Generations</p>
+                <div className="space-y-1.5 mb-5">
+                  {GENEROSITY_PROJECTION.map((row, idx) => {
+                    const actualMembers = genActivations[idx] || 0;
+                    const actualEarnings = genEarnings[idx] || 0;
+                    const genPct = Math.min(100, Math.round((actualMembers / row.members) * 100));
+                    return (
+                      <div key={row.week} className="bg-white/[0.03] border border-white/5 rounded-lg p-2.5">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-[#0682B4]/20 text-[#0682B4] text-[9px] font-bold px-1.5 py-0.5 rounded">W{row.week}</span>
+                            <span className="text-white text-xs font-semibold">{row.generation}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[#f3cc20] text-xs font-bold">R{actualEarnings.toLocaleString()}</span>
+                            <span className="text-white/30 text-[10px]"> / R{row.commission.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#0682B4]/70 rounded-full" style={{ width: `${genPct}%` }} />
+                          </div>
+                          <span className="text-white/50 text-[9px] font-semibold w-14 text-right">{actualMembers}/{row.members}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* PEARL daily activities */}
+                <div className="bg-[#f3cc20]/5 border border-[#f3cc20]/20 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-white font-semibold text-xs uppercase tracking-wider">PEARL Daily Work</p>
+                    <span className="text-[#f3cc20] text-[10px] font-bold bg-[#f3cc20]/10 px-2 py-0.5 rounded-full">
+                      R{PEARL_DAILY_TOTAL}/day potential
+                    </span>
+                  </div>
+
+                  {/* Today's activities */}
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {PEARL_ACTIVITIES.map((act, i) => {
+                      const done = activitiesToday > i;
+                      return (
+                        <div key={act.platform} className={`rounded-lg p-2 text-center border ${done ? 'bg-[#00a87e]/10 border-[#00a87e]/30' : 'bg-white/[0.03] border-white/10'}`}>
+                          <div className="flex items-center justify-center mb-1">
+                            {done
+                              ? <CheckCircle size={14} weight="fill" className="text-[#00a87e]" />
+                              : <Lock size={12} className="text-white/30" />}
+                          </div>
+                          <p className="text-white/80 text-[9px] font-semibold uppercase">{act.platform}</p>
+                          <p className={`text-[10px] font-bold ${done ? 'text-[#00a87e]' : 'text-white/40'}`}>R{act.earning}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-white/40 text-[9px] uppercase font-semibold">Today</p>
+                      <p className="font-display font-bold text-white text-sm">{activitiesToday}/{PEARL_ACTIVITIES_PER_DAY}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/40 text-[9px] uppercase font-semibold">This Week</p>
+                      <p className="font-display font-bold text-white text-sm">{pearlWeek}/{PEARL_ACTIVITIES_PER_DAY * PEARL_WORKING_DAYS_PER_WEEK}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/40 text-[9px] uppercase font-semibold">Lifetime</p>
+                      <p className="font-display font-bold text-[#f3cc20] text-sm">R{pearlEarned.toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <p className="text-white/30 text-[10px] mt-3 text-center">
+                    Weekly: R{PEARL_WEEKLY_TOTAL.toLocaleString()} · 6-week total: R{PEARL_6WEEK_TOTAL.toLocaleString()}
+                  </p>
+                </div>
+
+                <p className="text-white/40 text-[10px] mt-3 text-center leading-relaxed">
+                  Monitor and encourage your network · 10% commission flows {GENEROSITY_TOTAL_MEMBERS}-members deep · R{GENEROSITY_COMMISSION_PER_ACTIVATION} per activation
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Referral Hub Card */}
 
