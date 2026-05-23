@@ -39,6 +39,10 @@ import {
   MAX_MONTHLY_HANDSHAKES,
   HANDSHAKE_START_DATE,
   HANDSHAKE_END_DATE,
+  GENEROSITY_MAX_GENERATIONS,
+  GENEROSITY_COMMISSION_PER_ACTIVATION,
+  PEARL_ACTIVITIES_PER_DAY,
+  PEARL_ACTIVITY_EARNING,
 } from './constants';
 
 // ── SMS helper ────────────────────────────────────────────────────────────────
@@ -439,6 +443,11 @@ export async function verifyPayment(
       await checkAllGenerosityMilestones(user.referredBy);
     }
 
+    // Cascade MLM commissions when activation completes
+    if ((isSelfActivation || isFullyPaid) && updates.isActivated) {
+      await creditMLMCascade(payment.userId);
+    }
+
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Verify failed' };
@@ -629,6 +638,9 @@ export async function recordActivationPayment(
       await checkAndAwardPreLaunchReward(user.referredBy);
       await checkAllGenerosityMilestones(user.referredBy);
     }
+
+    // Cascade MLM commissions 6 generations up
+    await creditMLMCascade(uid);
 
     await checkAndAwardPreLaunchReward(uid);
 
@@ -1404,3 +1416,103 @@ async function checkAndAwardPreLaunchReward(userId: string): Promise<void> {
     `Your R${REWARD_TOTAL} Pre-Launch Special reward is scheduled for ${formatDate(rewardDate)}.`
   );
 }
+
+// ── Generosity MLM cascade (6 generations) ────────────────────────────────────
+
+async function creditMLMCascade(activatedUserId: string): Promise<void> {
+  const now = serverTimestamp();
+  let downstreamUserId = activatedUserId;
+
+  for (let gen = 0; gen < GENEROSITY_MAX_GENERATIONS; gen++) {
+    const downstreamSnap = await getDoc(doc(db, 'users', downstreamUserId));
+    if (!downstreamSnap.exists()) return;
+    const downstreamUser = downstreamSnap.data() as UserData;
+    if (!downstreamUser.referredBy) return;
+
+    const referrerRef = doc(db, 'users', downstreamUser.referredBy);
+    const referrerSnap = await getDoc(referrerRef);
+    if (!referrerSnap.exists()) return;
+    const referrer = referrerSnap.data() as UserData;
+
+    if (referrer.isActivated) {
+      const genActivations = [...(referrer.generationActivations || Array(GENEROSITY_MAX_GENERATIONS).fill(0))];
+      const genEarnings = [...(referrer.generationEarnings || Array(GENEROSITY_MAX_GENERATIONS).fill(0))];
+      genActivations[gen] = (genActivations[gen] || 0) + 1;
+      genEarnings[gen] = (genEarnings[gen] || 0) + GENEROSITY_COMMISSION_PER_ACTIVATION;
+
+      // Gen 1 commission is already paid via creditReferrerCommission — only credit Gen 2-6 here
+      const earningsBoost = gen === 0 ? 0 : GENEROSITY_COMMISSION_PER_ACTIVATION;
+
+      await updateDoc(referrerRef, {
+        generationActivations: genActivations,
+        generationEarnings: genEarnings,
+        totalEarnings: (referrer.totalEarnings || 0) + earningsBoost,
+        updatedAt: now,
+      });
+
+      if (gen > 0) {
+        await createNotification(
+          downstreamUser.referredBy,
+          'paid',
+          `MLM Gen ${gen + 1} commission: +R${GENEROSITY_COMMISSION_PER_ACTIVATION} from a downstream activation.`
+        );
+      }
+    }
+
+    downstreamUserId = downstreamUser.referredBy;
+  }
+}
+
+// ── PEARL daily social media activity logging ─────────────────────────────────
+
+function getWeekKey(d: Date): string {
+  const onejan = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${week}`;
+}
+
+export async function logPearlActivity(
+  uid: string,
+  platform: 'TikTok' | 'Facebook' | 'WhatsApp'
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const now = new Date();
+    const userRef = doc(db, 'users', uid);
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return { success: false, error: 'User not found' };
+    const user = snap.data() as UserData;
+
+    const lastDate = user.pearlActivitiesLastDate
+      ? (user.pearlActivitiesLastDate as Timestamp).toDate()
+      : null;
+    const isSameDay = lastDate ? lastDate.toDateString() === now.toDateString() : false;
+    const isSameWeek = lastDate ? getWeekKey(lastDate) === getWeekKey(now) : false;
+
+    const todayCount = isSameDay ? (user.pearlActivitiesToday || 0) : 0;
+    if (todayCount >= PEARL_ACTIVITIES_PER_DAY) {
+      return { success: false, error: 'Daily activity limit reached.' };
+    }
+
+    const weekCount = isSameWeek ? (user.pearlActivitiesThisWeek || 0) : 0;
+
+    await updateDoc(userRef, {
+      pearlActivitiesToday: todayCount + 1,
+      pearlActivitiesThisWeek: weekCount + 1,
+      pearlActivityEarnings: (user.pearlActivityEarnings || 0) + PEARL_ACTIVITY_EARNING,
+      pearlActivitiesLastDate: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await createNotification(
+      uid,
+      'share_reward',
+      `PEARL posted on ${platform}: +R${PEARL_ACTIVITY_EARNING} earned.`
+    );
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to log activity' };
+  }
+}
+
+export { creditMLMCascade };
