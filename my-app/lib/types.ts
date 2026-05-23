@@ -98,6 +98,9 @@ export interface UserData {
   // Generosity MLM tracking — populated as activations flow through the 6 generations
   generationActivations?: number[]; // length 6
   generationEarnings?: number[];    // length 6 (R)
+  // True once this user's activation has been cascaded up to their referrers.
+  // Prevents double-crediting during admin backfills of legacy activations.
+  mlmCascadeApplied?: boolean;
   // PEARL daily social media activity tracking
   pearlActivityEarnings?: number;       // lifetime R earned from PEARL's daily posts
   pearlActivitiesToday?: number;        // count of activities posted today (0-3)

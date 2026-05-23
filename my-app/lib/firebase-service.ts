@@ -778,15 +778,19 @@ export async function processWithdrawal(
       if (userSnap.exists()) {
         const userData = userSnap.data() as UserData;
         const currentRefEarnings = userData.totalEarnings || 0;
+        const currentPearlEarnings = userData.pearlActivityEarnings || 0;
         const currentShareEarnings = userData.shareEarnings || 0;
 
         let remainingToDeduct = w.amount;
         const deductRef = Math.min(currentRefEarnings, remainingToDeduct);
         remainingToDeduct -= deductRef;
+        const deductPearl = Math.min(currentPearlEarnings, remainingToDeduct);
+        remainingToDeduct -= deductPearl;
         const deductShare = Math.min(currentShareEarnings, remainingToDeduct);
 
         await updateDoc(doc(db, 'users', w.userId), {
           totalEarnings: Math.max(0, currentRefEarnings - deductRef),
+          pearlActivityEarnings: Math.max(0, currentPearlEarnings - deductPearl),
           shareEarnings: Math.max(0, currentShareEarnings - deductShare),
           updatedAt: now,
         });
@@ -1421,6 +1425,11 @@ async function checkAndAwardPreLaunchReward(userId: string): Promise<void> {
 
 async function creditMLMCascade(activatedUserId: string): Promise<void> {
   const now = serverTimestamp();
+
+  // Skip if this activation has already been cascaded (prevents double-credit on backfill).
+  const activatedSnap = await getDoc(doc(db, 'users', activatedUserId));
+  if (activatedSnap.exists() && (activatedSnap.data() as UserData).mlmCascadeApplied) return;
+
   let downstreamUserId = activatedUserId;
 
   for (let gen = 0; gen < GENEROSITY_MAX_GENERATIONS; gen++) {
@@ -1460,6 +1469,43 @@ async function creditMLMCascade(activatedUserId: string): Promise<void> {
     }
 
     downstreamUserId = downstreamUser.referredBy;
+  }
+
+  await updateDoc(doc(db, 'users', activatedUserId), {
+    mlmCascadeApplied: true,
+    updatedAt: now,
+  });
+}
+
+// ── Admin backfill for pre-cascade activations ────────────────────────────────
+
+export async function backfillMLMCascades(): Promise<{
+  success: boolean;
+  processed: number;
+  skipped: number;
+  error?: string;
+}> {
+  try {
+    const snap = await getDocs(query(collection(db, 'users'), where('isActivated', '==', true)));
+    let processed = 0;
+    let skipped = 0;
+    for (const userDoc of snap.docs) {
+      const user = userDoc.data() as UserData;
+      if (user.mlmCascadeApplied) {
+        skipped++;
+        continue;
+      }
+      await creditMLMCascade(userDoc.id);
+      processed++;
+    }
+    return { success: true, processed, skipped };
+  } catch (err) {
+    return {
+      success: false,
+      processed: 0,
+      skipped: 0,
+      error: err instanceof Error ? err.message : 'Backfill failed',
+    };
   }
 }
 

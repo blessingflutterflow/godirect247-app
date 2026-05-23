@@ -12,6 +12,7 @@ import {
   getAllWithdrawals, processWithdrawal, releaseReward, getAllTrios,
   updateIdentityVerificationStatus, buildActivationSMS, sendActivationSMS,
   getAllAdditionalPolicies, markAdditionalPolicyPaid,
+  backfillMLMCascades,
 } from '@/lib/firebase-service';
 import type { UserData, Payment, Reward, Referral, Withdrawal, Trio, AdditionalPolicy } from '@/lib/types';
 
@@ -63,6 +64,8 @@ export default function AdminDashboardPage() {
   const [smsModal, setSmsModal] = useState<{ memberId: string; memberName: string; phone: string; message: string } | null>(null);
   const [smsSending, setSmsSending] = useState(false);
   const [smsResult, setSmsResult] = useState<{ memberId: string; ok: boolean; error?: string } | null>(null);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -206,6 +209,21 @@ export default function AdminDashboardPage() {
     router.push('/admin');
   }
 
+  async function handleBackfillMLM() {
+    if (backfillBusy) return;
+    if (!confirm('Replay the 6-generation MLM cascade for any activated member whose activation predates the cascade rollout? This is safe to run multiple times — already-cascaded users are skipped.')) return;
+    setBackfillBusy(true);
+    setBackfillResult(null);
+    const res = await backfillMLMCascades();
+    if (res.success) {
+      setBackfillResult(`Backfill complete — processed ${res.processed}, skipped ${res.skipped} already-cascaded.`);
+      await loadData();
+    } else {
+      setBackfillResult(`Backfill failed: ${res.error || 'unknown error'}`);
+    }
+    setBackfillBusy(false);
+  }
+
   const filtered = members.filter((m) => {
     const q = search.toLowerCase();
     const matchQ = !q || (m.fullName || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q) || (m.idNumber || '').includes(q);
@@ -262,6 +280,28 @@ export default function AdminDashboardPage() {
           />
           <StatCard label="Pending review" value={pending} sub="Awaiting activation" highlight />
           <StatCard label="This month" value={members.length} sub="New applications" />
+        </div>
+
+        {/* MLM cascade backfill (one-off admin tool) */}
+        <div className="bg-[#191c1f] border border-white/10 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <p className="text-white font-semibold text-sm">Generosity MLM backfill</p>
+            <p className="text-white/40 text-xs mt-0.5">
+              Replays the 6-generation cascade for activated members whose activation predates the cascade rollout. Idempotent — already-cascaded users are skipped.
+            </p>
+            {backfillResult && (
+              <p className={`text-xs mt-2 ${backfillResult.startsWith('Backfill failed') ? 'text-[#e23b4a]' : 'text-[#00a87e]'}`}>
+                {backfillResult}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={handleBackfillMLM}
+            disabled={backfillBusy}
+            className="px-4 py-2 rounded-full text-xs font-semibold bg-[#f3cc20]/15 border border-[#f3cc20]/30 text-[#f3cc20] hover:bg-[#f3cc20]/25 transition-all disabled:opacity-50"
+          >
+            {backfillBusy ? 'Running…' : 'Run cascade backfill'}
+          </button>
         </div>
 
         {/* Tabs */}

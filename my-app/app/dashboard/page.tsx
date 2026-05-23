@@ -361,8 +361,9 @@ function DashboardContent() {
     }
     const u = userData as UserData;
     const refEarnings = u.totalEarnings || 0;
+    const pearlEarnings = u.pearlActivityEarnings || 0;
     const shareEarnings = (u.shareEarnings || 0) >= SHARE_MIN_WITHDRAWAL ? (u.shareEarnings || 0) : 0;
-    const amount = refEarnings + shareEarnings;
+    const amount = refEarnings + pearlEarnings + shareEarnings;
 
     if (amount <= 0) {
       if ((u.shareEarnings || 0) > 0 && (u.shareEarnings || 0) < SHARE_MIN_WITHDRAWAL) {
@@ -1380,7 +1381,7 @@ function DashboardContent() {
         </div>
 
         {/* Earnings & withdrawal */}
-        {((u.totalEarnings || 0) > 0 || pendingWithdrawal) && (
+        {((u.totalEarnings || 0) > 0 || (u.pearlActivityEarnings || 0) > 0 || pendingWithdrawal) && (
           <div className="ani3 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -1389,10 +1390,10 @@ function DashboardContent() {
               </div>
               <div className="text-right">
                 <span className="font-display font-bold text-[#f3cc20] text-xl block leading-none">
-                  R{((u.totalEarnings || 0) + (u.shareEarnings || 0)).toLocaleString()}
+                  R{((u.totalEarnings || 0) + (u.pearlActivityEarnings || 0) + (u.shareEarnings || 0)).toLocaleString()}
                 </span>
                 <span className="text-white/30 text-[10px]">
-                  R{u.totalEarnings || 0} Ref · R{u.shareEarnings || 0} Share
+                  R{u.totalEarnings || 0} Ref · R{u.pearlActivityEarnings || 0} PEARL · R{u.shareEarnings || 0} Share
                 </span>
               </div>
             </div>
@@ -1467,7 +1468,7 @@ function DashboardContent() {
                     disabled={withdrawing}
                     className="py-3 rounded-xl bg-[#00a87e] text-white font-bold text-sm hover:bg-[#008c69] transition-all disabled:opacity-60"
                   >
-                    {withdrawing ? 'Submitting…' : `Withdraw R${((u.totalEarnings || 0) + ((u.shareEarnings || 0) >= SHARE_MIN_WITHDRAWAL ? (u.shareEarnings || 0) : 0)).toLocaleString()}`}
+                    {withdrawing ? 'Submitting…' : `Withdraw R${((u.totalEarnings || 0) + (u.pearlActivityEarnings || 0) + ((u.shareEarnings || 0) >= SHARE_MIN_WITHDRAWAL ? (u.shareEarnings || 0) : 0)).toLocaleString()}`}
                   </button>
                 </div>
               </div>
