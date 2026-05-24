@@ -39,6 +39,27 @@ export function GenerosityReward() {
               you earn while you sleep.
             </p>
 
+            {/* Special Signup — fixed R1,000 activation including PEARL subscription */}
+            <div className="bg-gradient-to-r from-[#f3cc20]/20 to-[#0682B4]/15 border border-[#f3cc20]/40 rounded-2xl p-5 md:p-6 mb-7 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex-1 min-w-[220px]">
+                <p className="text-white/60 text-[10px] uppercase tracking-widest font-semibold mb-1">
+                  Special Generosity Signup
+                </p>
+                <p className="font-display font-bold text-white text-lg md:text-xl leading-snug">
+                  Activate for <span className="text-[#f3cc20]">R1,000</span> — includes your activation fee + PEARL subscription.
+                </p>
+                <p className="text-white/55 text-xs mt-1">
+                  One fixed payment. Unlocks Silver Plus cover and the full Generosity Reward chain.
+                </p>
+              </div>
+              <Link
+                href="/signup?special=generosity"
+                className="bg-[#f3cc20] text-[#191c1f] font-display font-bold text-sm md:text-base px-6 py-3 rounded-full hover:bg-[#c9a800] transition-all whitespace-nowrap"
+              >
+                Sign up here
+              </Link>
+            </div>
+
             {loading ? (
               <div className="bg-white/[0.04] border border-white/10 rounded-xl p-8 text-center">
                 <p className="text-white/50 text-sm">Loading…</p>

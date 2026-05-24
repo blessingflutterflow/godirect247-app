@@ -249,15 +249,23 @@ function SignupContent() {
   const [success, setSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  const isGenerositySpecial = searchParams.get('special') === 'generosity';
+
   useEffect(() => {
+    if (isGenerositySpecial) {
+      setPlanType('plus');
+      setTier('Silver Plus');
+      setStep((s) => (s === 1 ? 2 : s));
+      return;
+    }
     const plan = searchParams.get('plan') as PlanType | null;
     if (plan === 'plus' || plan === 'gold') setPlanType(plan);
-  }, [searchParams]);
+  }, [searchParams, isGenerositySpecial]);
 
   const tiers = planType === 'gold' ? GOLD_TIERS : PLUS_TIERS;
   const progress = (step / 4) * 100;
   const selectedTier = tiers.find((t) => t.name === tier) ?? null;
-  const baseActivationFee = selectedTier?.feeAmount ?? 0;
+  const baseActivationFee = isGenerositySpecial ? 1000 : (selectedTier?.feeAmount ?? 0);
   const hasExtendedFamily = showExtended && Boolean(extended.name);
   const extendedFamilyFee = hasExtendedFamily ? baseActivationFee * 0.2 : 0;
   const totalApplicationFee = baseActivationFee + extendedFamilyFee;
@@ -584,6 +592,16 @@ function SignupContent() {
       {/* Step 2: Personal details */}
       {step === 2 && (
         <div className="w-full ani1">
+          {isGenerositySpecial && (
+            <div className="bg-gradient-to-r from-[#f3cc20]/15 to-[#0682B4]/10 border border-[#f3cc20]/40 rounded-2xl p-4 mb-6">
+              <p className="text-[#f3cc20] text-[10px] uppercase tracking-widest font-bold mb-1">
+                Generosity Reward · Special Signup
+              </p>
+              <p className="text-white text-sm leading-snug">
+                Fixed activation of <strong className="text-[#f3cc20]">R1,000</strong> — includes Silver Plus cover and PEARL subscription.
+              </p>
+            </div>
+          )}
           <h2 className="font-display font-extrabold text-white text-3xl sm:text-4xl mb-2 tracking-tight">
             About you
           </h2>
@@ -749,9 +767,11 @@ function SignupContent() {
           </div>
 
           <div className="flex gap-3">
-            <button onClick={prevStep} className="flex-shrink-0 border-2 border-white/20 text-white py-4 px-6 rounded-full hover:border-white/40 transition-all">
-              <ArrowLeft size={16} />
-            </button>
+            {!isGenerositySpecial && (
+              <button onClick={prevStep} className="flex-shrink-0 border-2 border-white/20 text-white py-4 px-6 rounded-full hover:border-white/40 transition-all">
+                <ArrowLeft size={16} />
+              </button>
+            )}
             <button onClick={nextStep} className="flex-1 bg-[#f3cc20] text-[#191c1f] font-display font-bold py-4 rounded-full hover:bg-[#c9a800] transition-all flex items-center justify-center gap-2">
               Continue <ArrowRight size={16} />
             </button>
