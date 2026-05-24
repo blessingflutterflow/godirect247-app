@@ -23,9 +23,15 @@ export function GenerosityReward() {
                 <Lock size={11} weight="fill" /> Members Only
               </span>
             </div>
-            <h2 className="font-display font-bold text-[#f3cc20] text-2xl md:text-3xl mb-2 tracking-tight">
+            <h2 className="font-display font-bold text-[#f3cc20] text-2xl md:text-3xl mb-3 tracking-tight">
               Generosity Reward · Marketing Acceleration
             </h2>
+            <p className="font-display font-semibold text-white text-lg md:text-xl leading-snug mb-4">
+              Turn your <span className="text-[#f3cc20]">R1,000</span> into <span className="text-[#f3cc20]">R114,600</span> in 6 weeks — without lifting a finger.
+              <span className="block text-white/70 font-normal text-sm md:text-base mt-1.5">
+                A simple AI Agent does all the work for you, and you reap all the benefits.
+              </span>
+            </p>
             <p className="text-white/70 text-sm md:text-base leading-relaxed mb-7">
               Activate together with PEARL. <strong className="text-white">You contribute R650, PEARL contributes R350</strong> — a R1,000 total
               activation. Then earn <strong className="text-[#f3cc20]">10% commission</strong> on every activation through your link, paid
