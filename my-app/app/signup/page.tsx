@@ -53,6 +53,7 @@ interface PersonalForm {
   employment: string;
   source: string;
   referral: string;
+  referralCode: string;
 }
 
 interface BeneficiaryForm {
@@ -215,7 +216,7 @@ function SignupContent() {
   const [tier, setTier] = useState<string | null>(null);
   const [personal, setPersonal] = useState<PersonalForm>({
     name: '', idNumber: '', phone: '', email: '', password: '', confirmPassword: '',
-    employment: '', source: '', referral: '',
+    employment: '', source: '', referral: '', referralCode: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -429,6 +430,14 @@ function SignupContent() {
     }
     setSubmitting(true);
     setSubmitError('');
+
+    if (typeof window !== 'undefined') {
+      const urlRef = new URLSearchParams(window.location.search).get('ref');
+      const manualCode = personal.referralCode.trim().toUpperCase();
+      if (!urlRef && manualCode) {
+        localStorage.setItem('referralCode', manualCode);
+      }
+    }
 
     const formData: SignUpFormData = {
       fullName: personal.name,
@@ -725,6 +734,17 @@ function SignupContent() {
                 <input type="text" value={personal.referral} onChange={(e) => setPersonal({ ...personal, referral: e.target.value })} placeholder="Name of person who referred you" className={`${inputCls} pr-12`} />
                 {dictationButton("personal-referral", (text) => setPersonal({ ...personal, referral: text }))}
               </div>
+            </Field>
+            <Field label="Referral code (optional)">
+              <input
+                type="text"
+                value={personal.referralCode}
+                onChange={(e) => setPersonal({ ...personal, referralCode: e.target.value.toUpperCase().trim() })}
+                placeholder="Enter referral code if you have one"
+                className={inputCls}
+                autoCapitalize="characters"
+                spellCheck={false}
+              />
             </Field>
           </div>
 
