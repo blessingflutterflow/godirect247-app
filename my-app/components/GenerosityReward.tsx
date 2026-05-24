@@ -18,7 +18,7 @@ export function GenerosityReward() {
               <span className="bg-[#f3cc20] text-[#191c1f] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
                 Limited Offer
               </span>
-              <span className="text-[#f3cc20]/70 text-xs font-semibold">Ends 30 May 2026</span>
+              <span className="text-[#f3cc20]/70 text-xs font-semibold">Extended To 9 August 2026</span>
               <span className="bg-white/10 border border-white/20 text-white/80 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide flex items-center gap-1.5">
                 <Lock size={11} weight="fill" /> Members Only
               </span>

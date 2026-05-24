@@ -43,7 +43,7 @@ export function daysBetween(d1: Date, d2: Date) {
   return Math.floor((d2.getTime() - d1.getTime()) / msPerDay);
 }
 
-const CAMPAIGN_END = new Date('2026-05-30T23:59:59');
+const CAMPAIGN_END = new Date('2026-08-09T23:59:59');
 
 export function isCampaignActive() {
   return new Date() < CAMPAIGN_END;

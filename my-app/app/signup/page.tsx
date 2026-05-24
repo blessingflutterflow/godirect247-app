@@ -509,7 +509,7 @@ function SignupContent() {
               <span className="bg-[#f3cc20] text-[#191c1f] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
                 Limited Offer
               </span>
-              <span className="text-[#f3cc20]/70 text-[10px] font-semibold">Ends 30 May 2026</span>
+              <span className="text-[#f3cc20]/70 text-[10px] font-semibold">Extended To 9 August 2026</span>
             </div>
             <h3 className="font-display font-bold text-[#f3cc20] text-lg mb-1 tracking-tight">
               Pre Launch SPECIAL
