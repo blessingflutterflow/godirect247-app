@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import {
   ShieldCheck,
   Users,
@@ -34,7 +33,7 @@ export default async function HomePage({
       {/* ── Hero ── */}
       <section className="bg-[#191c1f] pt-16 min-h-screen flex flex-col justify-center">
         <div className="max-w-6xl mx-auto px-5 py-24 md:py-32">
-          <div className="grid lg:grid-cols-[1fr_360px] gap-12 items-center">
+          <div className="grid gap-12 items-center">
             <div className="max-w-3xl">
               {ref && (
                 <div className="ani1 inline-flex items-center gap-2 bg-[#f3cc20]/10 border border-[#f3cc20]/30 rounded-full px-4 py-1.5 mb-6">
@@ -72,19 +71,6 @@ export default async function HomePage({
                 >
                   How it works
                 </Link>
-              </div>
-            </div>
-
-            <div className="ani3 hidden lg:flex justify-end">
-              <div className="rounded-full bg-white p-5 shadow-2xl shadow-black/30 border border-white/20">
-                <Image
-                  src="/godirect247-logo.jpg"
-                  alt="GoDirect247 logo"
-                  width={288}
-                  height={288}
-                  priority
-                  className="h-72 w-72 rounded-full object-cover"
-                />
               </div>
             </div>
           </div>
