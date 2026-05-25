@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { UserData, Payment, AppNotification, Referral, Reward, Withdrawal, SignUpFormData, Trio, AdditionalPolicy, AdditionalPolicyFormData } from './types';
+import { generateMemberPromoCode } from './promo-codes';
 import {
   ACTIVATION_AMOUNT,
   TOTAL_ACTIVATION,
@@ -166,6 +167,8 @@ export async function signUpUser(
       }
     }
 
+    const memberPromoCode = generateMemberPromoCode(userData.fullName);
+
     const now = serverTimestamp();
     await setDoc(doc(db, 'users', uid), {
       uid,
@@ -188,6 +191,12 @@ export async function signUpUser(
       baseActivationFee: userData.baseActivationFee,
       extendedFamilyFee: userData.extendedFamilyFee,
       totalApplicationFee: userData.totalApplicationFee,
+      promoCode: userData.promoCode ?? null,
+      promoDiscountPercent: userData.promoDiscountPercent ?? 0,
+      promoDiscountAmount: userData.promoDiscountAmount ?? 0,
+      promoIsFreeCover: userData.promoIsFreeCover ?? false,
+      promoActivistOptIn: userData.promoActivistOptIn ?? false,
+      memberPromoCode,
       isActivated: false,
       totalPaid: 0,
       activationDate: null,
@@ -279,6 +288,22 @@ export async function signUpUser(
             ? `GoDirect247: ${userData.fullName || 'Someone'} joined using your link. Plus Plan handshake commission ${formatCurrency(handshakeCommissionAmount)} is scheduled for the next Friday pay run.`
             : `GoDirect247: ${userData.fullName || 'Someone'} joined using your link. Potential activation commission ${formatCurrency(potentialActivationCommission)}.`
         );
+      }
+    }
+
+    if (userData.promoCode) {
+      try {
+        await setDoc(
+          doc(db, 'promoRedemptions', userData.promoCode),
+          {
+            code: userData.promoCode,
+            lastRedeemedAt: serverTimestamp(),
+            lastUid: uid,
+          },
+          { merge: true }
+        );
+      } catch {
+        // Non-fatal: counter write should never block signup.
       }
     }
 

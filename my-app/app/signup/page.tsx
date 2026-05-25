@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, ArrowLeft, Camera, CheckCircle, Eye, EyeSlash, Microphone, PaperPlaneTilt, UploadSimple } from '@phosphor-icons/react';
@@ -9,6 +9,13 @@ import { signUpUser } from '@/lib/firebase-service';
 import { PLUS_TIERS, GOLD_TIERS } from '@/lib/constants';
 import { assessSelfieQuality } from '@/lib/selfie-quality';
 import type { Dependent, PolicyDocuments, SignUpFormData, UploadedDocument } from '@/lib/types';
+import {
+  applyPromoCode,
+  normalizePromoCode,
+  YOUTH_PROMO_CODE,
+  GENEROSITY_PROMO_CODE,
+  PEARL_ACTIVIST_FEE,
+} from '@/lib/promo-codes';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -248,6 +255,8 @@ function SignupContent() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [activistOptIn, setActivistOptIn] = useState(false);
 
   const isGenerositySpecial = searchParams.get('special') === 'generosity';
 
@@ -260,15 +269,34 @@ function SignupContent() {
     }
     const plan = searchParams.get('plan') as PlanType | null;
     if (plan === 'plus' || plan === 'gold') setPlanType(plan);
+    const promo = searchParams.get('promo');
+    if (promo) setPromoCodeInput(normalizePromoCode(promo));
   }, [searchParams, isGenerositySpecial]);
 
   const tiers = planType === 'gold' ? GOLD_TIERS : PLUS_TIERS;
   const progress = (step / 4) * 100;
   const selectedTier = tiers.find((t) => t.name === tier) ?? null;
-  const baseActivationFee = isGenerositySpecial ? 1000 : (selectedTier?.feeAmount ?? 0);
+  const rawBaseActivationFee = isGenerositySpecial ? 1000 : (selectedTier?.feeAmount ?? 0);
+
+  const promoResult = useMemo(
+    () =>
+      applyPromoCode({
+        rawCode: promoCodeInput,
+        idNumber: personal.idNumber,
+        baseFee: rawBaseActivationFee,
+        mode: isGenerositySpecial ? 'generosity' : 'standard',
+      }),
+    [promoCodeInput, personal.idNumber, rawBaseActivationFee, isGenerositySpecial]
+  );
+
+  const baseActivationFee = promoResult.valid ? promoResult.payableFee : rawBaseActivationFee;
   const hasExtendedFamily = showExtended && Boolean(extended.name);
   const extendedFamilyFee = hasExtendedFamily ? baseActivationFee * 0.2 : 0;
-  const totalApplicationFee = baseActivationFee + extendedFamilyFee;
+  const pearlActivistFee =
+    promoResult.valid && promoResult.pearlActivationFee && activistOptIn
+      ? promoResult.pearlActivationFee
+      : 0;
+  const totalApplicationFee = baseActivationFee + extendedFamilyFee + pearlActivistFee;
 
   async function handleSendOtp() {
     setSendingOtp(true);
@@ -465,6 +493,11 @@ function SignupContent() {
       extendedFamilyFee,
       totalApplicationFee,
       identitySelfieDataUrl,
+      promoCode: promoResult.valid ? promoResult.code ?? null : null,
+      promoDiscountPercent: promoResult.valid ? promoResult.discountPercent : 0,
+      promoDiscountAmount: promoResult.valid ? promoResult.discountAmount : 0,
+      promoIsFreeCover: promoResult.valid ? promoResult.isFreeCover : false,
+      promoActivistOptIn: Boolean(pearlActivistFee),
     };
 
     const result = await signUpUser(personal.email, personal.password, formData);
@@ -763,6 +796,51 @@ function SignupContent() {
                 autoCapitalize="characters"
                 spellCheck={false}
               />
+            </Field>
+            <Field label={`Promo code (optional · try ${YOUTH_PROMO_CODE} or ${GENEROSITY_PROMO_CODE})`}>
+              <input
+                type="text"
+                value={promoCodeInput}
+                onChange={(e) => setPromoCodeInput(normalizePromoCode(e.target.value))}
+                placeholder="Enter promo code"
+                className={inputCls}
+                autoCapitalize="characters"
+                spellCheck={false}
+              />
+              {promoCodeInput && (
+                <div className="mt-2 text-xs">
+                  {promoResult.valid ? (
+                    <div className="rounded-xl border border-[#00a87e]/40 bg-[#00a87e]/10 p-3 text-white">
+                      <p className="font-semibold text-[#00a87e]">
+                        {promoResult.isFreeCover
+                          ? `🎉 Free cover unlocked (${promoResult.ageBracket})`
+                          : `✓ ${promoResult.discountPercent}% off (${promoResult.ageBracket})`}
+                      </p>
+                      <p className="text-white/60 mt-1">
+                        Activation fee: <span className="line-through text-white/40">R{rawBaseActivationFee}</span>{' '}
+                        <span className="text-white font-bold">R{promoResult.payableFee}</span>
+                      </p>
+                      {promoResult.pearlActivationFee && (
+                        <label className="mt-3 flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={activistOptIn}
+                            onChange={(e) => setActivistOptIn(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span className="text-white/70">
+                            Also become a <strong className="text-[#f3cc20]">Pearl Activist</strong> in the Generosity Reward — adds R{PEARL_ACTIVIST_FEE} activation fee.
+                          </span>
+                        </label>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-[#e23b4a]/40 bg-[#e23b4a]/10 p-3 text-[#e23b4a]">
+                      {promoResult.reason || 'Invalid promo code.'}
+                    </div>
+                  )}
+                </div>
+              )}
             </Field>
           </div>
 

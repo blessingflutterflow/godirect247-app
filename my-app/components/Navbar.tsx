@@ -43,6 +43,9 @@ export function Navbar() {
           <Link href="/#how-it-works" className="text-white/60 hover:text-white transition-colors">
             How it works
           </Link>
+          <Link href="/promo" className="text-[#f3cc20] hover:text-[#c9a800] font-semibold transition-colors">
+            Promo
+          </Link>
         </div>
 
         <div className="hidden md:flex items-center gap-3">
@@ -112,6 +115,9 @@ export function Navbar() {
             className="text-white/70 py-1"
           >
             How it works
+          </Link>
+          <Link href="/promo" onClick={() => setOpen(false)} className="text-[#f3cc20] font-semibold py-1">
+            Promo
           </Link>
           <div className="border-t border-white/10 pt-4 flex flex-col gap-3">
             <Link

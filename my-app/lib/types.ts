@@ -67,6 +67,12 @@ export interface UserData {
   baseActivationFee?: number;
   extendedFamilyFee?: number;
   totalApplicationFee?: number;
+  promoCode?: string | null;
+  promoDiscountPercent?: number;
+  promoDiscountAmount?: number;
+  promoIsFreeCover?: boolean;
+  promoActivistOptIn?: boolean;
+  memberPromoCode?: string;
   isActivated: boolean;
   totalPaid: number;
   totalEarnings?: number;
@@ -208,6 +214,11 @@ export interface SignUpFormData {
   extendedFamilyFee: number;
   totalApplicationFee: number;
   identitySelfieDataUrl?: string | null;
+  promoCode?: string | null;
+  promoDiscountPercent?: number;
+  promoDiscountAmount?: number;
+  promoIsFreeCover?: boolean;
+  promoActivistOptIn?: boolean;
 }
 
 export interface AdditionalPolicy {
