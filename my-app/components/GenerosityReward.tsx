@@ -27,7 +27,7 @@ export function GenerosityReward() {
               Generosity Reward · Marketing Acceleration
             </h2>
             <p className="font-display font-semibold text-white text-lg md:text-xl leading-snug mb-4">
-              Turn your <span className="text-[#f3cc20]">R1,000</span> into <span className="text-[#f3cc20]">R114,600</span> in 6 weeks — without lifting a finger.
+              Road to <span className="text-[#f3cc20]">R114,600</span> in 6 Weeks — Without Lifting A Finger.
               <span className="block text-white/70 font-normal text-sm md:text-base mt-1.5">
                 A simple AI Agent does all the work for you, and you reap all the benefits.
               </span>
