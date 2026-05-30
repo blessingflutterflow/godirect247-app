@@ -33,8 +33,7 @@ export function GenerosityReward() {
               </span>
             </p>
             <p className="text-white/70 text-sm md:text-base leading-relaxed mb-7">
-              Activate together with PEARL. <strong className="text-white">You contribute R650, PEARL contributes R350</strong> — a R1,000 total
-              activation. Then earn <strong className="text-[#f3cc20]">10% commission</strong> on every activation through your link, paid
+              Earn <strong className="text-[#f3cc20]">10% commission</strong> on every activation through your link, paid
               <strong className="text-[#f3cc20]"> 6 generations deep</strong>. PEARL also runs daily social media activities on your behalf, so
               you earn while you sleep.
             </p>
