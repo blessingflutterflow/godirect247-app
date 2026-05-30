@@ -29,7 +29,7 @@ export function GenerosityReward() {
             <p className="font-display font-semibold text-white text-lg md:text-xl leading-snug mb-4">
               Road to <span className="text-[#f3cc20]">R114,600</span> in 6 Weeks — Without Lifting A Finger.
               <span className="block text-white/70 font-normal text-sm md:text-base mt-1.5">
-                A simple AI Agent does all the work for you, and you reap all the benefits.
+                Activate your Family Funeral Cover Worth <span className="text-[#f3cc20] font-semibold">R10,000</span> with <span className="text-[#f3cc20] font-semibold">R650</span> and Subscribe to PEARL for <span className="text-[#f3cc20] font-semibold">R350</span>.
               </span>
             </p>
             <p className="text-white/70 text-sm md:text-base leading-relaxed mb-7">
