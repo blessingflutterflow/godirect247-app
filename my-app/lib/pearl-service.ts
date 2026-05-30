@@ -153,8 +153,10 @@ export async function getAllSubscriptions(): Promise<PearlSubscription[]> {
 // ── Products ─────────────────────────────────────────────────────────────────
 
 export async function listActiveProducts(): Promise<Product[]> {
-  const snap = await getDocs(query(collection(db, PRODUCTS), where('active', '==', true), orderBy('createdAt', 'desc')));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Product, 'id'>) }));
+  const snap = await getDocs(query(collection(db, PRODUCTS), orderBy('createdAt', 'desc')));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Omit<Product, 'id'>) }))
+    .filter((p) => p.active);
 }
 
 export async function listAllProducts(): Promise<Product[]> {
