@@ -13,10 +13,11 @@ import {
   updateIdentityVerificationStatus, buildActivationSMS, sendActivationSMS,
   getAllAdditionalPolicies, markAdditionalPolicyPaid,
   backfillMLMCascades,
+  allocateManualOfflineCommission,
 } from '@/lib/firebase-service';
 import type { UserData, Payment, Reward, Referral, Withdrawal, Trio, AdditionalPolicy } from '@/lib/types';
 
-type TabId = 'members' | 'packages' | 'payments' | 'rewards' | 'referrals' | 'withdrawals' | 'teams';
+type TabId = 'members' | 'packages' | 'earnings' | 'payments' | 'rewards' | 'referrals' | 'withdrawals' | 'teams';
 type StatusFilter = '' | 'Active' | 'Pending' | 'Lapsed';
 type PlanFilter = '' | 'Plus' | 'Gold';
 
@@ -66,6 +67,9 @@ export default function AdminDashboardPage() {
   const [smsResult, setSmsResult] = useState<{ memberId: string; ok: boolean; error?: string } | null>(null);
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [manualForm, setManualForm] = useState({ referrerEmail: '', buyerName: '', packageAmount: '', notes: '' });
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualResult, setManualResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -209,6 +213,40 @@ export default function AdminDashboardPage() {
     router.push('/admin');
   }
 
+  async function handleAllocateManual(e: React.FormEvent) {
+    e.preventDefault();
+    if (manualBusy) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    const amount = Number(manualForm.packageAmount);
+    if (!manualForm.referrerEmail.trim() || !manualForm.buyerName.trim() || !(amount > 0)) {
+      setManualResult({ ok: false, message: 'Fill in referrer email, buyer name and a package amount greater than zero.' });
+      return;
+    }
+    const expected = Math.round(amount * 0.10 * 100) / 100;
+    if (!confirm(`Credit R${expected.toLocaleString('en-ZA')} (10% of R${amount.toLocaleString('en-ZA')}) to ${manualForm.referrerEmail.trim()} for offline sale to ${manualForm.buyerName.trim()}? Pays on the next Friday run.`)) return;
+    setManualBusy(true);
+    setManualResult(null);
+    const res = await allocateManualOfflineCommission({
+      referrerEmail: manualForm.referrerEmail,
+      buyerName: manualForm.buyerName,
+      packageAmount: amount,
+      adminUid: user.uid,
+      notes: manualForm.notes,
+    });
+    setManualBusy(false);
+    if (res.success) {
+      setManualResult({
+        ok: true,
+        message: `Credited R${(res.commissionAmount ?? 0).toLocaleString('en-ZA')} to ${res.referrerName || manualForm.referrerEmail}. Pays on next Friday run.`,
+      });
+      setManualForm({ referrerEmail: '', buyerName: '', packageAmount: '', notes: '' });
+      await Promise.all([loadReferrals(), loadData()]);
+    } else {
+      setManualResult({ ok: false, message: res.error || 'Could not allocate commission.' });
+    }
+  }
+
   async function handleBackfillMLM() {
     if (backfillBusy) return;
     if (!confirm('Replay the 6-generation MLM cascade for any activated member whose activation predates the cascade rollout? This is safe to run multiple times — already-cascaded users are skipped.')) return;
@@ -304,11 +342,78 @@ export default function AdminDashboardPage() {
           </button>
         </div>
 
+        {/* Manual offline commission allocation */}
+        <div className="bg-[#191c1f] border border-white/10 rounded-2xl p-4 mb-6">
+          <div className="mb-3">
+            <p className="text-white font-semibold text-sm">Allocate offline-sale commission</p>
+            <p className="text-white/40 text-xs mt-0.5">
+              Use this when a member sells a package offline. Credits 10% of the package amount to the referrer&apos;s account. Pays on the next Friday run.
+            </p>
+          </div>
+          <form onSubmit={handleAllocateManual} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <input
+              type="email"
+              required
+              placeholder="Referrer email"
+              value={manualForm.referrerEmail}
+              onChange={(e) => setManualForm((p) => ({ ...p, referrerEmail: e.target.value }))}
+              className="bg-[#111315] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#f3cc20]/50"
+            />
+            <input
+              type="text"
+              required
+              placeholder="Buyer full name"
+              value={manualForm.buyerName}
+              onChange={(e) => setManualForm((p) => ({ ...p, buyerName: e.target.value }))}
+              className="bg-[#111315] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#f3cc20]/50"
+            />
+            <input
+              type="number"
+              required
+              min="1"
+              step="any"
+              placeholder="Package amount (R)"
+              value={manualForm.packageAmount}
+              onChange={(e) => setManualForm((p) => ({ ...p, packageAmount: e.target.value }))}
+              className="bg-[#111315] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#f3cc20]/50"
+            />
+            <input
+              type="text"
+              placeholder="Notes (optional)"
+              value={manualForm.notes}
+              onChange={(e) => setManualForm((p) => ({ ...p, notes: e.target.value }))}
+              className="bg-[#111315] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#f3cc20]/50"
+            />
+            <div className="sm:col-span-2 lg:col-span-4 flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-white/40 text-xs">
+                {Number(manualForm.packageAmount) > 0
+                  ? `Commission: R${(Math.round(Number(manualForm.packageAmount) * 0.10 * 100) / 100).toLocaleString('en-ZA')}`
+                  : 'Enter a package amount to preview the commission.'}
+              </p>
+              <button
+                type="submit"
+                disabled={manualBusy}
+                className="px-4 py-2 rounded-full text-xs font-semibold bg-[#f3cc20]/15 border border-[#f3cc20]/30 text-[#f3cc20] hover:bg-[#f3cc20]/25 transition-all disabled:opacity-50"
+              >
+                {manualBusy ? 'Allocating…' : 'Allocate commission'}
+              </button>
+            </div>
+            {manualResult && (
+              <p
+                className={`sm:col-span-2 lg:col-span-4 text-xs ${manualResult.ok ? 'text-[#00a87e]' : 'text-[#e23b4a]'}`}
+              >
+                {manualResult.message}
+              </p>
+            )}
+          </form>
+        </div>
+
         {/* Tabs */}
         <div className="ani2 flex gap-2 mb-4 overflow-x-auto pb-1">
           {([
             { id: 'members', label: 'Members' },
             { id: 'packages', label: `Packages${additionalPolicies.length ? ` (${additionalPolicies.length})` : ''}` },
+            { id: 'earnings', label: 'Earnings' },
             { id: 'payments', label: `Payments${payments.length ? ` (${payments.length})` : ''}` },
             { id: 'rewards', label: `Rewards${rewards.length ? ` (${rewards.length})` : ''}` },
             { id: 'referrals', label: `Referrals${referrals.length ? ` (${referrals.length})` : ''}` },
@@ -588,6 +693,242 @@ export default function AdminDashboardPage() {
             })()}
           </div>
         )}
+
+        {/* Earnings tab — per-member report */}
+        {tab === 'earnings' && (() => {
+          const rows = members.map((m) => {
+            const userReferrals = referrals.filter((r) => r.referrerId === m.id);
+            const referralsTotal = userReferrals.length;
+            const referralsPaid = userReferrals.filter((r) => r.status === 'paid').length;
+            const potentialCommission = userReferrals
+              .filter((r) => r.status !== 'paid')
+              .reduce((sum, r) => sum + (r.potentialActivationCommission ?? 0), 0);
+            const userPackages = additionalPolicies.filter((p) => p.userId === m.id);
+            const packagesActive = userPackages.filter((p) => p.status === 'active').length;
+            const packagesPending = userPackages.filter((p) => p.status === 'pending_payment').length;
+            const packagesValue = userPackages
+              .filter((p) => p.status === 'active')
+              .reduce((sum, p) => sum + (p.totalApplicationFee || 0), 0);
+            const refEarn = m.totalEarnings || 0;
+            const pearlEarn = m.pearlActivityEarnings || 0;
+            const shareEarn = m.shareEarnings || 0;
+            return {
+              id: m.id,
+              name: m.fullName || m.email || m.id.slice(0, 8),
+              email: m.email || '',
+              shares: m.shareCount || 0,
+              shareEarn,
+              referralsTotal,
+              referralsPaid,
+              potentialCommission,
+              refEarn,
+              pearlEarn,
+              totalEarn: refEarn + pearlEarn + shareEarn,
+              packagesActive,
+              packagesPending,
+              packagesAll: userPackages.length,
+              packagesValue,
+            };
+          });
+          const sorted = [...rows].sort((a, b) => b.totalEarn - a.totalEarn);
+          const totals = sorted.reduce(
+            (acc, r) => ({
+              shares: acc.shares + r.shares,
+              shareEarn: acc.shareEarn + r.shareEarn,
+              refEarn: acc.refEarn + r.refEarn,
+              pearlEarn: acc.pearlEarn + r.pearlEarn,
+              totalEarn: acc.totalEarn + r.totalEarn,
+              potential: acc.potential + r.potentialCommission,
+              packagesValue: acc.packagesValue + r.packagesValue,
+              packagesAll: acc.packagesAll + r.packagesAll,
+            }),
+            { shares: 0, shareEarn: 0, refEarn: 0, pearlEarn: 0, totalEarn: 0, potential: 0, packagesValue: 0, packagesAll: 0 }
+          );
+
+          function downloadCsv() {
+            const header = [
+              'Member', 'Email', 'Link shares', 'Share earnings (R)',
+              'Referrals total', 'Referrals activated', 'Potential commission (R)',
+              'Referral earnings (R)', 'PEARL earnings (R)', 'Total earnings (R)',
+              'Packages (active)', 'Packages (pending)', 'Packages (all)', 'Package value (R)',
+            ];
+            const rowsCsv = sorted.map((r) => [
+              r.name, r.email, r.shares, r.shareEarn,
+              r.referralsTotal, r.referralsPaid, r.potentialCommission,
+              r.refEarn, r.pearlEarn, r.totalEarn,
+              r.packagesActive, r.packagesPending, r.packagesAll, r.packagesValue,
+            ]);
+            const csv = [header, ...rowsCsv]
+              .map((line) => line.map((cell) => {
+                const s = String(cell ?? '');
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+              }).join(','))
+              .join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `godirect247-earnings-${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+
+          return (
+            <div className="ani3 bg-[#191c1f] border border-white/10 rounded-2xl overflow-hidden">
+              <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1">
+                  <h3 className="font-display font-bold text-white text-base">Earnings report</h3>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    Per-member view of link shares, referral activations, potential commission, PEARL earnings and packages bought. Sorted by total earnings.
+                  </p>
+                </div>
+                <button
+                  onClick={downloadCsv}
+                  className="text-xs font-semibold text-[#f3cc20] border border-[#f3cc20]/30 bg-[#f3cc20]/10 hover:bg-[#f3cc20]/20 px-3 py-2 rounded-full transition-all whitespace-nowrap"
+                >
+                  Export CSV
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-5 border-b border-white/10">
+                <div className="bg-white/[0.04] border border-white/10 rounded-xl p-3">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wide font-semibold">Total members</p>
+                  <p className="font-display font-bold text-white text-lg">{sorted.length}</p>
+                </div>
+                <div className="bg-white/[0.04] border border-white/10 rounded-xl p-3">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wide font-semibold">Total earned</p>
+                  <p className="font-display font-bold text-[#f3cc20] text-lg">R{totals.totalEarn.toLocaleString()}</p>
+                </div>
+                <div className="bg-white/[0.04] border border-white/10 rounded-xl p-3">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wide font-semibold">Potential commission</p>
+                  <p className="font-display font-bold text-white text-lg">R{totals.potential.toLocaleString()}</p>
+                </div>
+                <div className="bg-white/[0.04] border border-white/10 rounded-xl p-3">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wide font-semibold">Packages sold</p>
+                  <p className="font-display font-bold text-white text-lg">{totals.packagesAll}</p>
+                  <p className="text-white/40 text-[10px] mt-0.5">R{totals.packagesValue.toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      {[
+                        'Member', 'Link shares', 'Referrals', 'Potential',
+                        'Ref earnings', 'PEARL', 'Share R', 'Total', 'Packages',
+                      ].map((h) => (
+                        <th key={h} className="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-4 py-3">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.length === 0 ? (
+                      <tr><td className="px-5 py-4 text-white/40 text-sm" colSpan={9}>No members yet</td></tr>
+                    ) : sorted.map((r) => (
+                      <tr key={r.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-white text-sm">{r.name}</div>
+                          <div className="text-white/40 text-xs">{r.email}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-white text-sm">{r.shares}</div>
+                          <div className="text-white/40 text-xs">R{r.shareEarn.toLocaleString()}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-white text-sm">{r.referralsPaid} / {r.referralsTotal}</div>
+                          <div className="text-white/40 text-xs">activated</div>
+                        </td>
+                        <td className="px-4 py-3 text-white/80 text-sm">R{r.potentialCommission.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-[#f3cc20] font-semibold text-sm">R{r.refEarn.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-white/80 text-sm">R{r.pearlEarn.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-white/80 text-sm">R{r.shareEarn.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-[#f3cc20] font-bold text-sm">R{r.totalEarn.toLocaleString()}</td>
+                        <td className="px-4 py-3">
+                          <div className="text-white text-sm">{r.packagesActive} active</div>
+                          <div className="text-white/40 text-xs">
+                            {r.packagesPending ? `${r.packagesPending} pending · ` : ''}R{r.packagesValue.toLocaleString()}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {sorted.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t border-white/10 bg-white/[0.02]">
+                        <td className="px-4 py-3 text-white/40 text-xs uppercase tracking-wide font-semibold">Totals</td>
+                        <td className="px-4 py-3 text-white text-sm">{totals.shares}</td>
+                        <td className="px-4 py-3 text-white text-sm">—</td>
+                        <td className="px-4 py-3 text-white text-sm">R{totals.potential.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-[#f3cc20] font-semibold text-sm">R{totals.refEarn.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-white text-sm">R{totals.pearlEarn.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-white text-sm">R{totals.shareEarn.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-[#f3cc20] font-bold text-sm">R{totals.totalEarn.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-white text-sm">{totals.packagesAll} · R{totals.packagesValue.toLocaleString()}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+
+              {/* Mobile / tablet cards */}
+              <div className="lg:hidden divide-y divide-white/5">
+                {sorted.length === 0 ? (
+                  <div className="p-4 text-white/40 text-sm">No members yet</div>
+                ) : sorted.map((r) => (
+                  <div key={r.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-semibold truncate">{r.name}</p>
+                        <p className="text-white/40 text-xs truncate">{r.email}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[#f3cc20] font-display font-bold text-sm">R{r.totalEarn.toLocaleString()}</p>
+                        <p className="text-white/40 text-[10px]">Total earned</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2">
+                        <p className="text-white/40 text-[10px] uppercase">Link shares</p>
+                        <p className="text-white font-semibold">{r.shares} · R{r.shareEarn.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2">
+                        <p className="text-white/40 text-[10px] uppercase">Referrals</p>
+                        <p className="text-white font-semibold">{r.referralsPaid} / {r.referralsTotal}</p>
+                      </div>
+                      <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2">
+                        <p className="text-white/40 text-[10px] uppercase">Potential</p>
+                        <p className="text-white font-semibold">R{r.potentialCommission.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2">
+                        <p className="text-white/40 text-[10px] uppercase">Ref earnings</p>
+                        <p className="text-[#f3cc20] font-semibold">R{r.refEarn.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2">
+                        <p className="text-white/40 text-[10px] uppercase">PEARL</p>
+                        <p className="text-white font-semibold">R{r.pearlEarn.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2">
+                        <p className="text-white/40 text-[10px] uppercase">Packages</p>
+                        <p className="text-white font-semibold">
+                          {r.packagesActive} active{r.packagesPending ? ` · ${r.packagesPending} pending` : ''}
+                        </p>
+                        <p className="text-white/40 text-[10px]">R{r.packagesValue.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-4 border-t border-white/10 text-white/30 text-xs">
+                Showing {sorted.length} of {members.length} members
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Payments tab */}
         {tab === 'payments' && (

@@ -1214,6 +1214,97 @@ async function creditReferrerCommission(
   );
 }
 
+// ── Manual offline commission allocation ─────────────────────────────────────
+
+export async function allocateManualOfflineCommission(input: {
+  referrerEmail: string;
+  buyerName: string;
+  packageAmount: number;
+  adminUid: string;
+  notes?: string;
+}): Promise<{
+  success: boolean;
+  referralId?: string;
+  commissionAmount?: number;
+  referrerName?: string;
+  error?: string;
+}> {
+  try {
+    const email = (input.referrerEmail || '').trim().toLowerCase();
+    const buyerName = (input.buyerName || '').trim();
+    const amount = Number(input.packageAmount);
+    if (!email) return { success: false, error: 'Referrer email is required.' };
+    if (!buyerName) return { success: false, error: 'Buyer name is required.' };
+    if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: 'Package amount must be greater than zero.' };
+
+    const usersSnap = await getDocs(
+      query(collection(db, 'users'), where('email', '==', email), limit(1))
+    );
+    if (usersSnap.empty) {
+      return { success: false, error: `No member found with email ${email}.` };
+    }
+    const referrerDoc = usersSnap.docs[0];
+    const referrerId = referrerDoc.id;
+    const referrer = referrerDoc.data() as UserData;
+
+    const commissionAmount = Math.round(amount * ACTIVATION_COMMISSION_RATE * 100) / 100;
+    const now = serverTimestamp();
+    const duePaymentDate = Timestamp.fromDate(getNextReferralPayDate());
+
+    const referralRef = await addDoc(collection(db, 'referrals'), {
+      referrerId,
+      referredUserId: null,
+      referredUserName: buyerName,
+      status: 'paid',
+      commissionAmount,
+      signupCommissionAmount: 0,
+      activationCommissionAmount: commissionAmount,
+      potentialActivationCommission: 0,
+      handshakeCommissionAmount: 0,
+      handshakeMonth: null,
+      handshakePaidOnSignup: false,
+      duePaymentDate,
+      paidAt: now,
+      createdAt: now,
+      source: 'manual_offline',
+      offlineBuyerName: buyerName,
+      offlinePackageAmount: amount,
+      allocatedBy: input.adminUid,
+      allocationNotes: input.notes?.trim() || null,
+    });
+
+    await updateDoc(doc(db, 'users', referrerId), {
+      totalEarnings: (referrer.totalEarnings || 0) + commissionAmount,
+      updatedAt: now,
+    });
+
+    await createNotification(
+      referrerId,
+      'paid',
+      `Offline sale credited: ${formatCurrency(commissionAmount)} commission for ${buyerName} (R${amount.toLocaleString('en-ZA')} package). Pays on next Friday run.`
+    );
+
+    if (referrer.phone) {
+      sendSMSNotification(
+        referrer.phone,
+        `GoDirect247: ${formatCurrency(commissionAmount)} commission credited for offline sale to ${buyerName}. Pays on next Friday run.`
+      );
+    }
+
+    return {
+      success: true,
+      referralId: referralRef.id,
+      commissionAmount,
+      referrerName: referrer.fullName,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to allocate manual commission.',
+    };
+  }
+}
+
 // ── Additional Policies ───────────────────────────────────────────────────────
 
 export async function createAdditionalPolicy(
