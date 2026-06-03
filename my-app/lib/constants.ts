@@ -73,6 +73,22 @@ export interface TierData {
   isTop?: boolean;
 }
 
+// Every plan participates in the Generosity Reward · MLM chain.
+// Commission = 10% of the plan's activation fee, paid 6 generations deep.
+// 6-week potential assumes the same 3 new members / week projection
+// (1,092 total members across 6 generations) used in the Generosity Reward section.
+export function tierCommissionPerReferral(tier: TierData): number {
+  return Math.round(tier.feeAmount * GENEROSITY_COMMISSION_RATE);
+}
+
+export function tierSixWeekPotential(tier: TierData): number {
+  return tierCommissionPerReferral(tier) * GENEROSITY_TOTAL_MEMBERS;
+}
+
+export function formatRand(amount: number): string {
+  return `R${amount.toLocaleString('en-ZA')}`;
+}
+
 export const PLUS_TIERS: TierData[] = [
   { name: 'Silver Plus', cover: 'R10,000', coverAmount: 10000, fee: 'R650', feeAmount: 650 },
   { name: 'Gold Plus', cover: 'R15,000', coverAmount: 15000, fee: 'R950', feeAmount: 950 },

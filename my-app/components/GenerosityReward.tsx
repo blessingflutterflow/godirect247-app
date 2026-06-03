@@ -3,6 +3,14 @@
 import Link from 'next/link';
 import { Coins, Lock } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/auth-context';
+import {
+  PLUS_TIERS,
+  GOLD_TIERS,
+  tierCommissionPerReferral,
+  tierSixWeekPotential,
+  formatRand,
+  GENEROSITY_MAX_GENERATIONS,
+} from '@/lib/constants';
 
 export function GenerosityReward() {
   const { user, userData, loading } = useAuth();
@@ -34,8 +42,10 @@ export function GenerosityReward() {
             </p>
             <p className="text-white/70 text-sm md:text-base leading-relaxed mb-7">
               Earn <strong className="text-[#f3cc20]">10% commission</strong> on every activation through your link, paid
-              <strong className="text-[#f3cc20]"> 6 generations deep</strong>. PEARL also runs daily social media activities on your behalf, so
-              you earn while you sleep.
+              <strong className="text-[#f3cc20]"> {GENEROSITY_MAX_GENERATIONS} generations deep</strong>. The same method is now
+              <strong className="text-[#f3cc20]"> linked to every package</strong> — Plus and Gold tiers — so your earnings
+              scale with the activation fee. PEARL also runs daily social media activities on your behalf, so you earn
+              while you sleep.
             </p>
 
             {/* Special Signup — fixed R1,000 activation including PEARL subscription */}
@@ -178,6 +188,55 @@ export function GenerosityReward() {
                   <div className="mt-4 bg-[#f3cc20]/15 border border-[#f3cc20]/40 rounded-xl p-4 flex items-center justify-between">
                     <span className="text-white font-semibold text-sm">6-week total from PEARL’s work</span>
                     <span className="font-display font-bold text-[#f3cc20] text-xl">R5,400</span>
+                  </div>
+                </div>
+
+                {/* Every Package · MLM linked */}
+                <div className="mb-8">
+                  <p className="text-white font-display font-bold text-base md:text-lg mb-1">
+                    Every Package · Linked To MLM
+                  </p>
+                  <p className="text-white/50 text-xs mb-4">
+                    10% of the activation fee per referral, paid {GENEROSITY_MAX_GENERATIONS}{' '}
+                    generations deep. The 6-week column scales the same 3-per-week projection
+                    (1,092 total members) across the chain.
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {[
+                      { label: 'Plus Plan', tiers: PLUS_TIERS },
+                      { label: 'Gold Plan', tiers: GOLD_TIERS },
+                    ].map(({ label, tiers }) => (
+                      <div
+                        key={label}
+                        className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden"
+                      >
+                        <div className="bg-white/[0.04] px-4 py-2.5 border-b border-white/10">
+                          <p className="text-[#f3cc20] font-display font-bold text-sm">{label}</p>
+                        </div>
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="text-white/40 uppercase tracking-wider text-[10px]">
+                              <th className="px-4 py-2 font-semibold">Tier</th>
+                              <th className="px-4 py-2 font-semibold text-right">Per Referral</th>
+                              <th className="px-4 py-2 font-semibold text-right">6-Wk Potential</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-white/80">
+                            {tiers.map((tier) => (
+                              <tr key={tier.name} className="border-t border-white/[0.06]">
+                                <td className="px-4 py-2 text-white/80">{tier.name}</td>
+                                <td className="px-4 py-2 text-right font-semibold text-white">
+                                  {formatRand(tierCommissionPerReferral(tier))}
+                                </td>
+                                <td className="px-4 py-2 text-right font-semibold text-[#f3cc20]">
+                                  {formatRand(tierSixWeekPotential(tier))}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

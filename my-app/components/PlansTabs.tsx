@@ -2,8 +2,16 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Shield, Crown } from '@phosphor-icons/react';
-import { PLUS_TIERS, GOLD_TIERS, type TierData } from '@/lib/constants';
+import { Shield, Crown, TrendUp } from '@phosphor-icons/react';
+import {
+  PLUS_TIERS,
+  GOLD_TIERS,
+  type TierData,
+  tierCommissionPerReferral,
+  tierSixWeekPotential,
+  formatRand,
+  GENEROSITY_MAX_GENERATIONS,
+} from '@/lib/constants';
 import { QuotationCalculator } from '@/components/QuotationCalculator';
 
 function TierRow({ tier, isGold }: { tier: TierData; isGold: boolean }) {
@@ -12,9 +20,12 @@ function TierRow({ tier, isGold }: { tier: TierData; isGold: boolean }) {
     : 'hover:bg-[#f3cc20]/5 bg-[#f3cc20]/[0.03]';
   const normalClass = isGold ? 'hover:bg-[#f3cc20]/[0.03]' : 'hover:bg-white/[0.03]';
 
+  const commission = tierCommissionPerReferral(tier);
+  const sixWeek = tierSixWeekPotential(tier);
+
   if (tier.isTop) {
     return (
-      <div className={`grid grid-cols-3 px-5 py-4 transition-colors items-center ${topClass}`}>
+      <div className={`grid grid-cols-4 px-5 py-4 transition-colors items-center ${topClass}`}>
         <span className="font-semibold text-[#f3cc20] text-sm flex items-center gap-2">
           {tier.name}
           <span className="text-[10px] bg-[#f3cc20]/20 text-[#f3cc20] px-1.5 py-0.5 rounded-full border border-[#f3cc20]/30">
@@ -22,16 +33,48 @@ function TierRow({ tier, isGold }: { tier: TierData; isGold: boolean }) {
           </span>
         </span>
         <span className="text-center font-display font-bold text-[#f3cc20]">{tier.cover}</span>
-        <span className="text-right text-[#f3cc20]/70 text-sm">{tier.fee}</span>
+        <span className="text-center text-[#f3cc20]/70 text-sm">{tier.fee}</span>
+        <span className="text-right text-sm">
+          <span className="font-semibold text-[#f3cc20]">{formatRand(commission)}</span>
+          <span className="block text-[10px] text-[#f3cc20]/60 mt-0.5">
+            6-wk: {formatRand(sixWeek)}
+          </span>
+        </span>
       </div>
     );
   }
 
   return (
-    <div className={`grid grid-cols-3 px-5 py-4 transition-colors items-center ${normalClass}`}>
+    <div className={`grid grid-cols-4 px-5 py-4 transition-colors items-center ${normalClass}`}>
       <span className="font-medium text-white text-sm">{tier.name}</span>
       <span className="text-center font-display font-bold text-white">{tier.cover}</span>
-      <span className="text-right text-white/60 text-sm">{tier.fee}</span>
+      <span className="text-center text-white/60 text-sm">{tier.fee}</span>
+      <span className="text-right text-sm">
+        <span className="font-semibold text-[#f3cc20]">{formatRand(commission)}</span>
+        <span className="block text-[10px] text-white/40 mt-0.5">
+          6-wk: {formatRand(sixWeek)}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function MlmBanner() {
+  return (
+    <div className="flex items-start gap-3 bg-[#f3cc20]/[0.06] border border-[#f3cc20]/25 rounded-xl p-4 mb-5">
+      <div className="bg-[#f3cc20]/15 border border-[#f3cc20]/30 rounded-lg p-2 flex-shrink-0">
+        <TrendUp className="text-[#f3cc20]" size={18} weight="bold" />
+      </div>
+      <div className="text-sm">
+        <p className="font-display font-bold text-white">
+          Every plan earns 10% commission, paid {GENEROSITY_MAX_GENERATIONS} generations deep.
+        </p>
+        <p className="text-white/60 text-xs mt-1 leading-relaxed">
+          Same Generosity Reward · Marketing Acceleration method, scaled to your activation fee.
+          The 6-week column shows your potential if every member in your chain introduces 3 new
+          members each week.
+        </p>
+      </div>
     </div>
   );
 }
@@ -75,11 +118,15 @@ export function PlansTabs() {
               </p>
             </div>
           </div>
+
+          <MlmBanner />
+
           <div className="rounded-2xl border border-white/10 overflow-hidden mb-5">
-            <div className="grid grid-cols-3 bg-white/[0.04] px-5 py-3 text-xs text-white/30 font-semibold uppercase tracking-wider border-b border-white/10">
+            <div className="grid grid-cols-4 bg-white/[0.04] px-5 py-3 text-xs text-white/30 font-semibold uppercase tracking-wider border-b border-white/10">
               <span>Tier</span>
               <span className="text-center">Cover</span>
-              <span className="text-right">Activation fee</span>
+              <span className="text-center">Activation fee</span>
+              <span className="text-right">10% × 6 Gens</span>
             </div>
             <div className="divide-y divide-white/[0.06]">
               {PLUS_TIERS.map((tier) => (
@@ -114,11 +161,15 @@ export function PlansTabs() {
               Popular
             </span>
           </div>
+
+          <MlmBanner />
+
           <div className="rounded-2xl border border-[#f3cc20]/20 overflow-hidden mb-5 bg-[#f3cc20]/[0.02]">
-            <div className="grid grid-cols-3 bg-[#f3cc20]/[0.06] px-5 py-3 text-xs text-white/30 font-semibold uppercase tracking-wider border-b border-[#f3cc20]/15">
+            <div className="grid grid-cols-4 bg-[#f3cc20]/[0.06] px-5 py-3 text-xs text-white/30 font-semibold uppercase tracking-wider border-b border-[#f3cc20]/15">
               <span>Tier</span>
               <span className="text-center">Cover</span>
-              <span className="text-right">Activation fee</span>
+              <span className="text-center">Activation fee</span>
+              <span className="text-right">10% × 6 Gens</span>
             </div>
             <div className="divide-y divide-white/[0.06]">
               {GOLD_TIERS.map((tier) => (
