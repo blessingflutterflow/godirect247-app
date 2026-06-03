@@ -76,6 +76,7 @@ export interface UserData {
   isActivated: boolean;
   totalPaid: number;
   totalEarnings?: number;
+  pendingReferralCommission?: number;
   activationDate: Timestamp | null;
   rewardReleaseDate: Timestamp | null;
   families: GiftFamily[];

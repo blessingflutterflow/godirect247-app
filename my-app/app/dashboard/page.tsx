@@ -958,7 +958,8 @@ function DashboardContent() {
           );
           const cashbackThisWeekTotal = cashbackThisWeek.reduce((sum, c) => sum + c.amount, 0);
           const goldThisWeekAmount = goldDueThisWeek?.amount || 0;
-          const totalDueThisWeek = goldThisWeekAmount + cashbackThisWeekTotal;
+          const pendingRefCommission = u.pendingReferralCommission || 0;
+          const totalDueThisWeek = goldThisWeekAmount + cashbackThisWeekTotal + pendingRefCommission;
 
           const nextShareRate = getCurrentShareRewardAmount(u.shareCount || 0);
           const projectedNext10Shares = nextShareRate * 10;
@@ -1010,6 +1011,12 @@ function DashboardContent() {
                       <span className="text-white font-semibold">{formatCurrency(c.amount)}</span>
                     </div>
                   ))}
+                  {pendingRefCommission > 0 && (
+                    <div className="flex justify-between text-white/70">
+                      <span>Referral commission · allocated, due Friday</span>
+                      <span className="text-white font-semibold">{formatCurrency(pendingRefCommission)}</span>
+                    </div>
+                  )}
                   {totalDueThisWeek === 0 && (
                     <p className="text-white/40 text-xs">No scheduled payouts this week.</p>
                   )}
