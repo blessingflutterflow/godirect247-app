@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
   CheckCircle, Warning, SignOut, TrendUp, Gift, UserPlus,
-  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera, Printer, Plus, Bank,
+  CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera, Printer, Plus, Bank, Receipt,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -920,6 +920,150 @@ function DashboardContent() {
             (5th of your 4th month)
           </p>
         </div>
+
+        {/* Statement of Account */}
+        {(() => {
+          const today = new Date();
+          const startOfWeek = new Date(today);
+          startOfWeek.setDate(today.getDate() - today.getDay());
+          startOfWeek.setHours(0, 0, 0, 0);
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+          const weeksSinceActivation = activationDate
+            ? Math.max(0, Math.floor((today.getTime() - activationDate.getTime()) / (7 * 86400000)))
+            : 0;
+
+          const activationPaid = u.isActivated ? (u.totalApplicationFee || fee) : 0;
+          const additionalPaid = additionalPolicies
+            .filter((p) => p.status === 'active')
+            .reduce((sum, p) => sum + (p.totalApplicationFee || 0), 0);
+          const totalPaidIn = activationPaid + additionalPaid;
+
+          const goldWeeksCrossed = u.planType === 'gold' ? Math.min(weeksSinceActivation, 52) : 0;
+          const goldAccrued = u.planType === 'gold' ? weeklyGoldAmount * goldWeeksCrossed : 0;
+          const cashbackReceived = cashbackSchedule
+            .filter((c) => c.payDate <= today)
+            .reduce((sum, c) => sum + c.amount, 0);
+          const refEarn = u.totalEarnings || 0;
+          const pearlEarn = u.pearlActivityEarnings || 0;
+          const shareEarn = u.shareEarnings || 0;
+          const totalEarnedToDate = goldAccrued + cashbackReceived + refEarn + pearlEarn + shareEarn;
+
+          const goldDueThisWeek = u.planType === 'gold'
+            ? goldWeeklySchedule.find((item) => item.date >= startOfWeek && item.date < endOfWeek)
+            : null;
+          const cashbackThisWeek = cashbackSchedule.filter(
+            (c) => c.payDate >= startOfWeek && c.payDate < endOfWeek
+          );
+          const cashbackThisWeekTotal = cashbackThisWeek.reduce((sum, c) => sum + c.amount, 0);
+          const goldThisWeekAmount = goldDueThisWeek?.amount || 0;
+          const totalDueThisWeek = goldThisWeekAmount + cashbackThisWeekTotal;
+
+          const nextShareRate = getCurrentShareRewardAmount(u.shareCount || 0);
+          const projectedNext10Shares = nextShareRate * 10;
+
+          const pastGoldWeeks = u.planType === 'gold'
+            ? goldWeeklySchedule.filter((item) => item.date < today).slice(-12)
+            : [];
+
+          return (
+            <div className="ani2 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Receipt size={20} className="text-[#f3cc20]" />
+                  <span className="font-display font-bold text-white text-base">Statement of Account</span>
+                </div>
+                <span className="text-white/40 text-[10px]">
+                  Updated daily · {today.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <p className="text-white/40 text-[10px] uppercase font-semibold">Money Paid In</p>
+                  <p className="font-display font-bold text-white text-lg leading-tight mt-1">{formatCurrency(totalPaidIn)}</p>
+                  <p className="text-white/30 text-[10px] mt-0.5">Activation + packages</p>
+                </div>
+                <div className="bg-[#00a87e]/10 border border-[#00a87e]/20 rounded-xl p-3">
+                  <p className="text-[#00a87e] text-[10px] uppercase font-semibold">Earned To Date</p>
+                  <p className="font-display font-bold text-[#00a87e] text-lg leading-tight mt-1">{formatCurrency(totalEarnedToDate)}</p>
+                  <p className="text-white/30 text-[10px] mt-0.5">All sources combined</p>
+                </div>
+              </div>
+
+              <div className="bg-[#f3cc20]/10 border border-[#f3cc20]/20 rounded-xl p-3 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[#f3cc20] text-xs font-bold uppercase tracking-wider">Due This Week</p>
+                  <span className="text-[#f3cc20] font-bold text-base">{formatCurrency(totalDueThisWeek)}</span>
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  {goldDueThisWeek && (
+                    <div className="flex justify-between text-white/70">
+                      <span>Gold 5% · Week {goldDueThisWeek.week} ({goldDueThisWeek.date.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short' })})</span>
+                      <span className="text-white font-semibold">{formatCurrency(goldDueThisWeek.amount)}</span>
+                    </div>
+                  )}
+                  {cashbackThisWeek.map((c) => (
+                    <div key={c.label} className="flex justify-between text-white/70">
+                      <span>{c.label} · 20% cashback ({c.payDate.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short' })})</span>
+                      <span className="text-white font-semibold">{formatCurrency(c.amount)}</span>
+                    </div>
+                  ))}
+                  {totalDueThisWeek === 0 && (
+                    <p className="text-white/40 text-xs">No scheduled payouts this week.</p>
+                  )}
+                  {pendingWithdrawal && (
+                    <div className="flex justify-between text-white/70 pt-2 border-t border-white/10 mt-2">
+                      <span>Pending withdrawal · {pendingWithdrawal.bankName}</span>
+                      <span className="text-white font-semibold">{formatCurrency(pendingWithdrawal.amount)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 mb-4">
+                <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2">Potential Earnings</p>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between text-white/70">
+                    <span>From link shares · {u.shareCount || 0} shared (R{nextShareRate}/share next)</span>
+                    <span className="text-[#f3cc20] font-semibold">+R{projectedNext10Shares} / next 10</span>
+                  </div>
+                  <div className="flex justify-between text-white/70">
+                    <span>From referrals · {referralStats?.total || 0} signed up · {referralStats?.paid || 0} activated</span>
+                    <span className="text-[#f3cc20] font-semibold">{referralStats ? formatCurrency(referralStats.potentialEarnings || 0) : '—'}</span>
+                  </div>
+                  <div className="flex justify-between text-white/70 pt-2 border-t border-white/10 mt-2">
+                    <span>6-Generation MLM ceiling (6-week potential)</span>
+                    <span className="text-[#f3cc20] font-semibold">{formatCurrency(GENEROSITY_TOTAL_POTENTIAL)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {u.planType === 'gold' && pastGoldWeeks.length > 0 && (
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-white/70 text-xs font-bold uppercase tracking-wider">Previous Weekly 5% Payouts</p>
+                    <span className="text-white/40 text-[10px]">Last {pastGoldWeeks.length} weeks</span>
+                  </div>
+                  <div className="space-y-1 text-xs max-h-48 overflow-y-auto">
+                    {pastGoldWeeks.slice().reverse().map((item) => (
+                      <div key={item.week} className="flex justify-between text-white/70 py-1 border-b border-white/5 last:border-0">
+                        <span>W{item.week} · {item.date.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                        <span className="text-[#00a87e] font-semibold">{formatCurrency(item.amount)} paid</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-white/30 text-[10px] mt-2">5% of activation fee, paid weekly for 52 weeks.</p>
+                </div>
+              )}
+
+              {!u.isActivated && (
+                <p className="text-white/40 text-xs">Activate your cover to start the weekly 5% payout and cashback schedule.</p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Additional Packages */}
         <div className="ani2 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
