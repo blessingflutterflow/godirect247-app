@@ -15,6 +15,10 @@ env/
 Thumbs.db
 *.log
 *.db
+__MACOSX/
+
+# Pay@ integration spec — strictly confidential third-party material, do not publish
+API Spec/
 
 # Sitepro source bundles (large, CDN-served)
 sitepro/css/a*.css

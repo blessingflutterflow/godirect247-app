@@ -675,6 +675,126 @@ export async function recordActivationPayment(
   }
 }
 
+// ── Pay@ (Digi-API) ─────────────────────────────────────────────────────────
+
+/** Create a pending Pay@ activation payment and return its id (used as clientReference). */
+export async function createPayatPayment(
+  userId: string,
+  amount: number
+): Promise<{ id: string }> {
+  const now = serverTimestamp();
+  const ref = await addDoc(collection(db, 'payments'), {
+    userId,
+    amount,
+    type: 'self',
+    method: 'payat',
+    status: 'pending',
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { id: ref.id };
+}
+
+/** Attach the Pay@ account number + reference key to a pending payment. */
+export async function attachPayatDetails(
+  paymentId: string,
+  accountNumber: string,
+  referenceKey: string
+): Promise<void> {
+  await updateDoc(doc(db, 'payments', paymentId), {
+    payatAccountNumber: accountNumber,
+    payatReferenceKey: referenceKey,
+    clientReference: paymentId,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Confirm a Pay@ payment (called from the /api/payat/notify webhook).
+ * Marks the pending payment paid, activates the policy, credits the referrer and
+ * runs the 6-generation MLM cascade — mirroring recordActivationPayment().
+ * Idempotent: a re-delivered webhook is a no-op.
+ */
+export async function confirmPayatPayment(opts: {
+  clientReference?: string;
+  accountNumber: string;
+  amountPaidCents?: number;
+  payatTransactionId: string;
+}): Promise<{ success: boolean; alreadyProcessed?: boolean; error?: string }> {
+  try {
+    // Locate the pending payment — by clientReference (our doc id) first, then account number.
+    let paymentRef: ReturnType<typeof doc> | null = null;
+    let payment: Payment | null = null;
+
+    if (opts.clientReference) {
+      const ref = doc(db, 'payments', opts.clientReference);
+      const snap = await getDoc(ref);
+      if (snap.exists()) { paymentRef = ref; payment = snap.data() as Payment; }
+    }
+    if (!paymentRef) {
+      const snap = await getDocs(
+        query(collection(db, 'payments'), where('payatAccountNumber', '==', opts.accountNumber), limit(1))
+      );
+      if (!snap.empty) { paymentRef = snap.docs[0].ref; payment = snap.docs[0].data() as Payment; }
+    }
+    if (!paymentRef || !payment) return { success: false, error: 'Payment not found' };
+    if (payment.status === 'paid') return { success: true, alreadyProcessed: true };
+
+    const now = serverTimestamp();
+    const uid = payment.userId;
+    const amount = payment.amount;
+
+    await updateDoc(paymentRef, {
+      status: 'paid',
+      paidAt: now,
+      payatTransactionId: opts.payatTransactionId,
+      amountPaid: opts.amountPaidCents != null ? opts.amountPaidCents / 100 : amount,
+      updatedAt: now,
+    });
+
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return { success: false, error: 'User not found' };
+    const user = userSnap.data() as UserData;
+
+    if (!user.isActivated) {
+      const rewardDate = new Date();
+      rewardDate.setDate(rewardDate.getDate() + REWARD_DELAY_WEEKS * 7);
+      const coverExpiry = new Date();
+      coverExpiry.setMonth(coverExpiry.getMonth() + 12);
+
+      await updateDoc(userRef, {
+        isActivated: true,
+        activationDate: now,
+        totalPaid: (user.totalPaid || 0) + amount,
+        rewardReleaseDate: Timestamp.fromDate(rewardDate),
+        funeralCoverActive: true,
+        funeralCoverExpiry: Timestamp.fromDate(coverExpiry),
+        updatedAt: now,
+      });
+    } else {
+      await updateDoc(userRef, { totalPaid: (user.totalPaid || 0) + amount, updatedAt: now });
+    }
+
+    if (user.referredBy) {
+      await creditReferrerCommission(user.referredBy, uid, amount);
+      await checkAndAwardPreLaunchReward(user.referredBy);
+      await checkAllGenerosityMilestones(user.referredBy);
+    }
+
+    // Cascade MLM commissions 6 generations up
+    await creditMLMCascade(uid);
+
+    await checkAndAwardPreLaunchReward(uid);
+
+    await createNotification(uid, 'paid', `Your activation payment of R${amount} was received via Pay@. Your cover is now active!`);
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Confirm failed' };
+  }
+}
+
 export interface ReferralStats {
   total: number;
   paid: number;

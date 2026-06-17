@@ -7,6 +7,7 @@ import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
   CheckCircle, Warning, SignOut, TrendUp, Gift, UserPlus,
   CreditCard, ArrowRight, Copy, WhatsappLogo, Lock, Camera, Printer, Plus, Bank, Receipt,
+  Storefront, Barcode, QrCode,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -172,6 +173,16 @@ function DashboardContent() {
   const [activating, setActivating] = useState(false);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
   const [activationError, setActivationError] = useState('');
+  const [payatLoading, setPayatLoading] = useState(false);
+  const [payatCopied, setPayatCopied] = useState(false);
+  const [payatData, setPayatData] = useState<{
+    amount: number;
+    accountNumber: string;
+    sandbox?: boolean;
+    webPaymentLinks?: { paymentMethodName: string; paymentUrl: string }[];
+    appPaymentLinks?: { paymentMethodName: string; paymentUrl: string }[];
+    qrCodeUrl?: string | null;
+  } | null>(null);
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [copied, setCopied] = useState(false);
   const [pendingWithdrawal, setPendingWithdrawal] = useState<Withdrawal | null>(null);
@@ -214,6 +225,13 @@ function DashboardContent() {
       getUserAdditionalPolicies(user.uid).then(setAdditionalPolicies);
     }
   }, [user, refreshUserData]);
+
+  // While a Pay@ payment is open, poll for the webhook to confirm activation.
+  useEffect(() => {
+    if (!payatData || !user) return;
+    const iv = setInterval(() => { refreshUserData(); }, 6000);
+    return () => clearInterval(iv);
+  }, [payatData, user, refreshUserData]);
 
   // Handle Yoco payment callback
   useEffect(() => {
@@ -349,6 +367,32 @@ function DashboardContent() {
     }
     window.open(`/invoice/activation/${result.invoiceId}`, '_blank');
     setGeneratingInvoice(false);
+  }
+
+  async function handlePayat() {
+    if (!user || !userData) return;
+    setActivationError('');
+    if (userData.identityVerificationStatus !== 'approved') {
+      setActivationError('Please complete selfie verification before activating your cover.');
+      return;
+    }
+    setPayatLoading(true);
+    try {
+      const res = await fetch('/api/payat/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setActivationError(data.error || 'Could not start Pay@ payment. Please try again.');
+      } else {
+        setPayatData(data);
+      }
+    } catch {
+      setActivationError('Something went wrong. Please try again.');
+    }
+    setPayatLoading(false);
   }
 
   async function handleWithdraw() {
@@ -686,29 +730,126 @@ function DashboardContent() {
                 </div>
               </div>
             )}
-            <button
-              onClick={handleActivate}
-              disabled={activating || generatingInvoice || !identityApproved}
-              className="w-full bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3.5 rounded-xl hover:bg-[#c9a800] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {activating ? 'Processing…' : (
-                <>Pay by Card (R{fee.toLocaleString()}) <ArrowRight size={16} /></>
-              )}
-            </button>
-            <button
-              onClick={handleGenerateEftInvoice}
-              disabled={activating || generatingInvoice || !identityApproved}
-              className="w-full mt-2 bg-white/10 border border-white/20 text-white font-display font-bold py-3 rounded-xl hover:bg-white/15 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {generatingInvoice ? 'Generating invoice…' : (
-                <><Bank size={16} weight="bold" /> Pay by EFT — Get Invoice</>
-              )}
-            </button>
-            <p className="text-white/30 text-xs text-center mt-2">
-              {identityApproved
-                ? 'Card via Yoco, or EFT to Bank Zero. Cover activates within 1 working day of EFT clearing.'
-                : 'Take a clear selfie to unlock activation (approval is automatic).'}
-            </p>
+            {!payatData && (
+              <>
+                <button
+                  onClick={handleActivate}
+                  disabled={activating || generatingInvoice || payatLoading || !identityApproved}
+                  className="w-full bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3.5 rounded-xl hover:bg-[#c9a800] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {activating ? 'Processing…' : (
+                    <>Pay by Card (R{fee.toLocaleString()}) <ArrowRight size={16} /></>
+                  )}
+                </button>
+                <button
+                  onClick={handleGenerateEftInvoice}
+                  disabled={activating || generatingInvoice || payatLoading || !identityApproved}
+                  className="w-full mt-2 bg-white/10 border border-white/20 text-white font-display font-bold py-3 rounded-xl hover:bg-white/15 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {generatingInvoice ? 'Generating invoice…' : (
+                    <><Bank size={16} weight="bold" /> Pay by EFT — Get Invoice</>
+                  )}
+                </button>
+                <button
+                  onClick={handlePayat}
+                  disabled={activating || generatingInvoice || payatLoading || !identityApproved}
+                  className="w-full mt-2 bg-[#00a87e]/10 border border-[#00a87e]/25 text-[#00a87e] font-display font-bold py-3 rounded-xl hover:bg-[#00a87e]/20 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {payatLoading ? 'Loading…' : (
+                    <><Storefront size={16} weight="bold" /> Pay@ — Cash, EFT &amp; QR</>
+                  )}
+                </button>
+                <p className="text-white/30 text-xs text-center mt-2">
+                  {identityApproved
+                    ? 'Card via Yoco, EFT to Bank Zero, or Pay@ cash at any Shoprite, Checkers, PnP, Boxer or Spar.'
+                    : 'Take a clear selfie to unlock activation (approval is automatic).'}
+                </p>
+              </>
+            )}
+
+            {/* Pay@ payment panel */}
+            {payatData && (
+              <div className="ani1">
+                {payatData.sandbox && (
+                  <p className="text-[#f3cc20] text-[10px] bg-[#f3cc20]/10 border border-[#f3cc20]/20 rounded-lg px-2.5 py-1.5 mb-3">
+                    Sandbox mode — Pay@ live credentials not yet configured.
+                  </p>
+                )}
+
+                {/* Retail reference / barcode number */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Barcode size={16} className="text-[#00a87e]" />
+                    <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wide">
+                      Pay@ reference — pay cash at the till
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-white font-mono font-bold text-lg tracking-wider flex-1 truncate">
+                      {payatData.accountNumber}
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(payatData.accountNumber);
+                        setPayatCopied(true);
+                        setTimeout(() => setPayatCopied(false), 2000);
+                      }}
+                      className="flex-shrink-0 w-8 h-8 bg-white/10 border border-white/15 rounded-lg flex items-center justify-center hover:bg-white/20"
+                      title="Copy reference"
+                    >
+                      {payatCopied ? <CheckCircle size={14} className="text-[#00a87e]" /> : <Copy size={14} className="text-white/60" />}
+                    </button>
+                  </div>
+                  <p className="text-white/40 text-[10px] mt-2 leading-relaxed">
+                    Pay <span className="text-white font-semibold">R{payatData.amount.toLocaleString()}</span> at{' '}
+                    Shoprite, Checkers, Pick n Pay, Boxer, Spar, USave or your banking app — quote this Pay@ number.
+                  </p>
+                </div>
+
+                {/* Online payment links */}
+                {[...(payatData.webPaymentLinks || []), ...(payatData.appPaymentLinks || [])].length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wide">Or pay online now</p>
+                    {[...(payatData.webPaymentLinks || []), ...(payatData.appPaymentLinks || [])].map((link) => (
+                      <a
+                        key={link.paymentMethodName}
+                        href={link.paymentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 hover:border-[#f3cc20]/40 transition-all"
+                      >
+                        <span className="text-white text-sm font-semibold capitalize">
+                          {link.paymentMethodName.replace(/_/g, ' ').toLowerCase()}
+                        </span>
+                        <ArrowRight size={16} className="text-[#f3cc20]" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {payatData.qrCodeUrl && (
+                  <a
+                    href={payatData.qrCodeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 text-white/50 text-xs py-2 hover:text-white/80"
+                  >
+                    <QrCode size={14} /> Open QR / scan-to-pay link
+                  </a>
+                )}
+
+                <div className="flex items-center justify-center gap-2 text-white/40 text-[10px] mt-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00a87e] animate-pulse" />
+                  Waiting for payment — this page updates automatically once received.
+                </div>
+                <button
+                  onClick={() => setPayatData(null)}
+                  className="w-full mt-3 border border-white/10 text-white/40 text-xs py-2.5 rounded-xl hover:border-white/20 hover:text-white/60 transition-all"
+                >
+                  Choose a different method
+                </button>
+              </div>
+            )}
           </div>
         )}
 

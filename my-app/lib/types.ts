@@ -135,10 +135,17 @@ export interface Payment {
   type: 'self' | 'family1' | 'family2';
   familyIndex?: number | null;
   status: 'pending' | 'paid';
+  method?: 'eft' | 'yoco' | 'payat';
   verifiedBy?: string | null;
   verifiedAt?: Timestamp | null;
   paidAt?: Timestamp | null;
   createdAt: Timestamp;
+  // Pay@ (Digi-API) fields
+  payatAccountNumber?: string;
+  payatReferenceKey?: string;
+  payatTransactionId?: string;
+  clientReference?: string;
+  amountPaid?: number;
 }
 
 export interface AppNotification {
